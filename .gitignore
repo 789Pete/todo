@@ -131,7 +131,6 @@ dmypy.json
 # Django specific
 media/
 staticfiles/
-static/
 
 # IDE
 .vscode/
@@ -148,3 +147,6 @@ static/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# User generated ignore files
+.ignore/

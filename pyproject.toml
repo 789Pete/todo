@@ -1,0 +1,34 @@
+[project]
+name = "django-todo-app"
+version = "1.0.0"
+description = "To-Do Application with Network Graph Visualization"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "DJ",     # flake8-django
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "C90",    # mccabe complexity
+]
+ignore = ["E501"]  # Let formatter handle line length
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*.py" = ["E501", "DJ01"]
+"**/tests/*.py" = ["S101"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "todo_project.settings.test"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=apps --cov-report=html --cov-report=term"
+testpaths = ["apps", "tests"]

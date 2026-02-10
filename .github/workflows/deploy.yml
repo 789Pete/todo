@@ -1,0 +1,40 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to PythonAnywhere
+        env:
+          PA_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
+          PA_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        run: |
+          # Pull latest code
+          curl -s -X POST \
+            "https://www.pythonanywhere.com/api/v0/user/$PA_USERNAME/consoles/" \
+            -H "Authorization: Token $PA_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"executable\": \"bash\", \"arguments\": \"-c 'cd ~/todo && git pull origin main && source .venv/bin/activate && uv pip sync requirements/production.txt && python manage.py migrate && python manage.py collectstatic --noinput'\"}"
+
+          # Reload web app
+          curl -s -X POST \
+            "https://www.pythonanywhere.com/api/v0/user/$PA_USERNAME/webapps/$PA_USERNAME.pythonanywhere.com/reload/" \
+            -H "Authorization: Token $PA_API_TOKEN"
+
+      - name: Verify deployment
+        env:
+          PA_USERNAME: ${{ secrets.PYTHONANYWHERE_USERNAME }}
+        run: |
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$PA_USERNAME.pythonanywhere.com/health/")
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Deployment verified - health check returned 200"

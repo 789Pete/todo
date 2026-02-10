@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: todo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: test-secret-key-for-ci
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/todo_test
+      DJANGO_SETTINGS_MODULE: todo_project.settings.test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Create virtual environment
+        run: uv venv .venv
+
+      - name: Install dependencies
+        run: uv pip sync requirements/development.txt
+
+      - name: Run ruff check
+        run: .venv/bin/ruff check .
+
+      - name: Run ruff format check
+        run: .venv/bin/ruff format --check .
+
+      - name: Run Django checks
+        run: .venv/bin/python manage.py check
+
+      - name: Check migrations
+        run: .venv/bin/python manage.py migrate --check --dry-run
+
+      - name: Run tests with coverage
+        run: .venv/bin/pytest
