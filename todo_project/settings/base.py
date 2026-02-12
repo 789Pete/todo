@@ -125,3 +125,12 @@ AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
+
+# Message tags to match Bootstrap alert classes
+MESSAGE_TAGS = {
+    10: "debug",
+    20: "info",
+    25: "success",
+    30: "warning",
+    40: "danger",
+}

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}My Tasks - Todo App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>My Tasks</h1>
+    <a href="{% url 'task-create' %}" class="btn btn-primary">New Task</a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="btn-group" role="group" aria-label="Filter by status">
+            <a href="{% url 'task-list' %}{% if current_sort %}?sort={{ current_sort }}{% endif %}"
+               class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">All</a>
+            <a href="{% url 'task-list' %}?status=todo{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+               class="btn btn-outline-secondary {% if current_status == 'todo' %}active{% endif %}">To Do</a>
+            <a href="{% url 'task-list' %}?status=in_progress{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+               class="btn btn-outline-secondary {% if current_status == 'in_progress' %}active{% endif %}">In Progress</a>
+            <a href="{% url 'task-list' %}?status=done{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+               class="btn btn-outline-secondary {% if current_status == 'done' %}active{% endif %}">Done</a>
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="dropdown d-inline-block">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                Sort by
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{% url 'task-list' %}?sort=priority{% if current_status %}&status={{ current_status }}{% endif %}">Priority (Low first)</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-list' %}?sort=-priority{% if current_status %}&status={{ current_status }}{% endif %}">Priority (High first)</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-list' %}?sort=due_date{% if current_status %}&status={{ current_status }}{% endif %}">Due Date (Earliest)</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-list' %}?sort=-due_date{% if current_status %}&status={{ current_status }}{% endif %}">Due Date (Latest)</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-list' %}?sort=-created_at{% if current_status %}&status={{ current_status }}{% endif %}">Newest First</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-list' %}?sort=created_at{% if current_status %}&status={{ current_status }}{% endif %}">Oldest First</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{% if tasks %}
+<div class="list-group">
+    {% for task in tasks %}
+    <a href="{% url 'task-detail' pk=task.pk %}" class="list-group-item list-group-item-action">
+        <div class="d-flex w-100 justify-content-between align-items-start">
+            <div>
+                <h5 class="mb-1 {% if task.status == 'done' %}text-decoration-line-through text-muted{% endif %}">
+                    {{ task.title }}
+                </h5>
+                <div class="mt-1">
+                    {% if task.status == 'todo' %}
+                        <span class="badge bg-secondary">To Do</span>
+                    {% elif task.status == 'in_progress' %}
+                        <span class="badge bg-primary">In Progress</span>
+                    {% elif task.status == 'done' %}
+                        <span class="badge bg-success">Done</span>
+                    {% endif %}
+
+                    {% if task.priority == 'high' %}
+                        <span class="badge bg-danger">High</span>
+                    {% elif task.priority == 'medium' %}
+                        <span class="badge bg-warning text-dark">Medium</span>
+                    {% elif task.priority == 'low' %}
+                        <span class="badge bg-info">Low</span>
+                    {% endif %}
+
+                    {% if task.is_overdue %}
+                        <span class="badge bg-danger">Overdue</span>
+                    {% endif %}
+
+                    {% for tag in task.tags.all %}
+                        <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="text-end text-muted small">
+                {% if task.due_date %}
+                    <div>Due: {{ task.due_date }}</div>
+                {% endif %}
+                <div>{{ task.created_at|date:"M d, Y" }}</div>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+{% if is_paginated %}
+<nav class="mt-4" aria-label="Task pagination">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}">Previous</a>
+            </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        </li>
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}">Next</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <p class="text-muted fs-5">No tasks yet. Create your first task!</p>
+    <a href="{% url 'task-create' %}" class="btn btn-primary">Create Task</a>
+</div>
+{% endif %}
+{% endblock %}
