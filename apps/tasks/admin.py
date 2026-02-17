@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Count
 
 from .models import Tag, Task
 
@@ -27,6 +28,13 @@ class TaskAdmin(admin.ModelAdmin):
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ("name", "user", "color", "created_at")
+    list_display = ("name", "user", "color", "tag_task_count", "created_at")
     list_filter = ("color", "user")
     search_fields = ("name",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(num_tasks=Count("tasks"))
+
+    @admin.display(description="Tasks", ordering="num_tasks")
+    def tag_task_count(self, obj):
+        return obj.num_tasks

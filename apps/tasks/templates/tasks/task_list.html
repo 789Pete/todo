@@ -9,10 +9,12 @@
 </div>
 
 <div class="row mb-3">
-    <div class="col-md-6">
-        <div class="btn-group" role="group" aria-label="Filter by status">
+    <div class="col-md-8">
+        <div class="d-flex flex-wrap gap-1" role="group" aria-label="Filter by status">
             <a href="{% url 'task-list' %}{% if current_sort %}?sort={{ current_sort }}{% endif %}"
                class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">All</a>
+            <a href="{% url 'task-list' %}?status=active{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+               class="btn btn-outline-secondary {% if current_status == 'active' %}active{% endif %}">Active</a>
             <a href="{% url 'task-list' %}?status=todo{% if current_sort %}&sort={{ current_sort }}{% endif %}"
                class="btn btn-outline-secondary {% if current_status == 'todo' %}active{% endif %}">To Do</a>
             <a href="{% url 'task-list' %}?status=in_progress{% if current_sort %}&sort={{ current_sort }}{% endif %}"
@@ -21,7 +23,7 @@
                class="btn btn-outline-secondary {% if current_status == 'done' %}active{% endif %}">Done</a>
         </div>
     </div>
-    <div class="col-md-6 text-end">
+    <div class="col-md-4 text-md-end mt-2 mt-md-0">
         <div class="dropdown d-inline-block">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                 Sort by
@@ -41,46 +43,57 @@
 {% if tasks %}
 <div class="list-group">
     {% for task in tasks %}
-    <a href="{% url 'task-detail' pk=task.pk %}" class="list-group-item list-group-item-action">
-        <div class="d-flex w-100 justify-content-between align-items-start">
-            <div>
-                <h5 class="mb-1 {% if task.status == 'done' %}text-decoration-line-through text-muted{% endif %}">
-                    {{ task.title }}
-                </h5>
-                <div class="mt-1">
-                    {% if task.status == 'todo' %}
-                        <span class="badge bg-secondary">To Do</span>
-                    {% elif task.status == 'in_progress' %}
-                        <span class="badge bg-primary">In Progress</span>
-                    {% elif task.status == 'done' %}
-                        <span class="badge bg-success">Done</span>
-                    {% endif %}
+    <div class="list-group-item {% if task.status == 'done' %}opacity-50{% endif %}{% if task.is_overdue %} border-start border-danger border-3{% endif %}">
+        <div class="d-flex flex-column flex-sm-row w-100 justify-content-sm-between align-items-sm-start gap-1">
+            <div class="d-flex align-items-start">
+                <form method="post" action="{% url 'task-toggle-status' pk=task.pk %}" class="me-2 mt-1">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm touch-target {% if task.status == 'done' %}btn-success{% else %}btn-outline-secondary{% endif %}"
+                            title="{% if task.status == 'done' %}Mark incomplete{% else %}Mark complete{% endif %}">
+                        {% if task.status == 'done' %}&#10003;{% else %}&#9675;{% endif %}
+                    </button>
+                </form>
+                <div>
+                    <a href="{% url 'task-detail' pk=task.pk %}" class="text-decoration-none">
+                        <h5 class="mb-1 {% if task.status == 'done' %}text-decoration-line-through text-muted{% endif %}">
+                            {{ task.title }}
+                        </h5>
+                    </a>
+                    <div class="mt-1">
+                        {% if task.status == 'todo' %}
+                            <span class="badge bg-secondary">To Do</span>
+                        {% elif task.status == 'in_progress' %}
+                            <span class="badge bg-primary">In Progress</span>
+                        {% elif task.status == 'done' %}
+                            <span class="badge bg-success">Done</span>
+                        {% endif %}
 
-                    {% if task.priority == 'high' %}
-                        <span class="badge bg-danger">High</span>
-                    {% elif task.priority == 'medium' %}
-                        <span class="badge bg-warning text-dark">Medium</span>
-                    {% elif task.priority == 'low' %}
-                        <span class="badge bg-info">Low</span>
-                    {% endif %}
+                        {% if task.priority == 'high' %}
+                            <span class="badge bg-danger">High</span>
+                        {% elif task.priority == 'medium' %}
+                            <span class="badge bg-warning text-dark">Medium</span>
+                        {% elif task.priority == 'low' %}
+                            <span class="badge bg-info">Low</span>
+                        {% endif %}
 
-                    {% if task.is_overdue %}
-                        <span class="badge bg-danger">Overdue</span>
-                    {% endif %}
+                        {% if task.is_overdue %}
+                            <span class="badge bg-danger">Overdue</span>
+                        {% endif %}
 
-                    {% for tag in task.tags.all %}
-                        <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
-                    {% endfor %}
+                        {% for tag in task.tags.all %}
+                            <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
-            <div class="text-end text-muted small">
+            <div class="text-sm-end text-muted small mt-1 mt-sm-0">
                 {% if task.due_date %}
                     <div>Due: {{ task.due_date }}</div>
                 {% endif %}
                 <div>{{ task.created_at|date:"M d, Y" }}</div>
             </div>
         </div>
-    </a>
+    </div>
     {% endfor %}
 </div>
 

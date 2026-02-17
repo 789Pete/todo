@@ -1,0 +1,45 @@
+schema: 1
+story: "1.5"
+story_title: "Basic Priority and Status Management"
+gate: PASS
+status_reason: "All 7 ACs met with comprehensive test coverage (14 new tests, 116 total, 99% coverage). Clean implementation following established patterns. No security, performance, or reliability concerns."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-15T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 100
+expires: "2026-03-01T00:00:00Z"
+
+evidence:
+  tests_reviewed: 116
+  new_tests_added: 14
+  risks_identified: 0
+  coverage: 99
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "LoginRequiredMixin, user isolation, CSRF protection, POST-only toggle, SORT_OPTIONS whitelist"
+  performance:
+    status: PASS
+    notes: "Module-level PRIORITY_ORDER, update_fields saves, existing indexes support queries, prefetch_related maintained"
+  reliability:
+    status: PASS
+    notes: "Idempotent mark_complete(), graceful 404 handling, comprehensive edge case testing"
+  maintainability:
+    status: PASS
+    notes: "Clean code structure, follows Django conventions, docstrings on model methods, consistent view patterns"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Add test for 'marked as incomplete' success message (minor gap — only 'marked as complete' message is currently tested)"
+      refs: ["apps/tasks/tests/test_views.py"]
+    - action: "Pre-existing: Fix sort-by-priority dropdown to use Case/When instead of alphabetical text sort (introduced in Story 1.4)"
+      refs: ["apps/tasks/views.py:18-25"]

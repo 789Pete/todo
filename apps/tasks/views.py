@@ -1,6 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Case, IntegerField, When
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.views import View
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -21,6 +24,13 @@ SORT_OPTIONS = {
     "-created_at": "-created_at",
 }
 
+PRIORITY_ORDER = Case(
+    When(priority="high", then=0),
+    When(priority="medium", then=1),
+    When(priority="low", then=2),
+    output_field=IntegerField(),
+)
+
 
 class TaskListView(LoginRequiredMixin, ListView):
     model = Task
@@ -31,11 +41,15 @@ class TaskListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = Task.objects.filter(user=self.request.user).prefetch_related("tags")
         status = self.request.GET.get("status")
-        if status in ("todo", "in_progress", "done"):
+        if status == "active":
+            qs = qs.filter(status__in=["todo", "in_progress"])
+        elif status in ("todo", "in_progress", "done"):
             qs = qs.filter(status=status)
         sort = self.request.GET.get("sort")
         if sort in SORT_OPTIONS:
             qs = qs.order_by(SORT_OPTIONS[sort])
+        else:
+            qs = qs.order_by(PRIORITY_ORDER, "-created_at")
         return qs
 
     def get_context_data(self, **kwargs):
@@ -103,3 +117,17 @@ class TaskDeleteView(LoginRequiredMixin, DeleteView):
             self.request, f'Task "{self.object.title}" deleted successfully.'
         )
         return super().form_valid(form)
+
+
+class TaskToggleStatusView(LoginRequiredMixin, View):
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        task = get_object_or_404(Task.objects.filter(user=request.user), pk=pk)
+        if task.status != "done":
+            task.mark_complete()
+            messages.success(request, f'Task "{task.title}" marked as complete!')
+        else:
+            task.mark_incomplete()
+            messages.success(request, f'Task "{task.title}" marked as incomplete.')
+        return redirect("task-list")

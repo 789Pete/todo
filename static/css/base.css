@@ -15,3 +15,45 @@ body {
 main {
     flex: 1;
 }
+
+/* Touch-friendly target sizing (44x44px minimum per Apple HIG) */
+.touch-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 991.98px) {
+    /* Ensure collapsed navbar links meet touch target minimums */
+    .navbar-nav .nav-link {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+}
+
+@media (max-width: 575.98px) {
+    /* Prevent iOS Safari auto-zoom on form input focus */
+    .form-control,
+    .form-select {
+        font-size: 16px;
+    }
+
+    /* Ensure pagination links meet touch target minimums */
+    .pagination .page-link {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+/* Prevent horizontal scrolling at any viewport width */
+html,
+body {
+    overflow-x: hidden;
+}

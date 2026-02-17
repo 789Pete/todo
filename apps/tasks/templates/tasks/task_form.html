@@ -33,11 +33,11 @@
             </div>
             {% endfor %}
 
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary touch-target">
                     {% if object %}Update Task{% else %}Create Task{% endif %}
                 </button>
-                <a href="{% url 'task-list' %}" class="btn btn-outline-secondary">Cancel</a>
+                <a href="{% url 'task-list' %}" class="btn btn-outline-secondary touch-target">Cancel</a>
             </div>
         </form>
     </div>

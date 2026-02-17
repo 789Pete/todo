@@ -17,7 +17,7 @@
                     <a class="nav-link {% if request.resolver_match.url_name == 'profile' %}active{% endif %}" href="{% url 'profile' %}">Profile</a>
                 </li>
                 <li class="nav-item">
-                    <span class="nav-link text-light">{{ user.username }}</span>
+                    <span class="nav-link text-light text-truncate" style="max-width: 150px;">{{ user.username }}</span>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'logout' %}">Logout</a>

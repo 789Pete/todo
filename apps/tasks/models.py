@@ -1,6 +1,8 @@
+import re
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -44,6 +46,42 @@ class Tag(models.Model):
     def __str__(self):
         return f"{self.name} ({self.color})"
 
+    def clean(self):
+        """Validate tag name uniqueness (case-insensitive) and color format."""
+        # Case-insensitive uniqueness check
+        if self.name and self.user_id:
+            duplicate = (
+                Tag.objects.filter(user=self.user, name__iexact=self.name)
+                .exclude(pk=self.pk)
+                .exists()
+            )
+            if duplicate:
+                raise ValidationError(
+                    {"name": f"Tag '{self.name}' already exists (case-insensitive)."}
+                )
+
+        # Hex color code validation
+        if self.color and not re.match(r"^#[0-9A-Fa-f]{6}$", self.color):
+            raise ValidationError(
+                {"color": "Color must be a valid hex code (e.g., #FF6B6B)."}
+            )
+
+    @property
+    def task_count(self):
+        """Return number of tasks with this tag."""
+        return self.tasks.count()
+
+    def get_related_tags(self):
+        """Get tags that frequently co-occur with this tag on tasks."""
+        from django.db.models import Count
+
+        return (
+            Tag.objects.filter(tasks__tags=self)
+            .exclude(id=self.id)
+            .annotate(shared_count=Count("tasks"))
+            .order_by("-shared_count")[:5]
+        )
+
 
 class Task(models.Model):
     """Task model representing a single to-do item. Belongs to a user and can have multiple tags."""
@@ -83,6 +121,7 @@ class Task(models.Model):
     due_date = models.DateField(null=True, blank=True)
     position = models.IntegerField(default=0, help_text="For manual ordering")
     tags = models.ManyToManyField("Tag", related_name="tasks", blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -115,3 +154,24 @@ class Task(models.Model):
             return None
         delta = self.due_date - timezone.now().date()
         return delta.days
+
+    def mark_complete(self):
+        """Mark task as done and record completion timestamp."""
+        if self.status != "done":
+            self.status = "done"
+            self.completed_at = timezone.now()
+            self.save(update_fields=["status", "completed_at", "updated_at"])
+
+    def mark_incomplete(self):
+        """Mark task as not done and clear completion timestamp."""
+        self.status = "todo"
+        self.completed_at = None
+        self.save(update_fields=["status", "completed_at", "updated_at"])
+
+    def get_related_tasks(self):
+        """Get tasks sharing tags with this task, excluding self."""
+        return (
+            Task.objects.filter(user=self.user, tags__in=self.tags.all())
+            .exclude(id=self.id)
+            .distinct()
+        )

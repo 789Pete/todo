@@ -33,9 +33,9 @@
 
         <form method="post">
             {% csrf_token %}
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-danger">Delete</button>
-                <a href="{% url 'task-detail' pk=object.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-danger touch-target">Delete</button>
+                <a href="{% url 'task-detail' pk=object.pk %}" class="btn btn-outline-secondary touch-target">Cancel</a>
             </div>
         </form>
     </div>

@@ -5,6 +5,7 @@ from apps.tasks.views import (
     TaskDeleteView,
     TaskDetailView,
     TaskListView,
+    TaskToggleStatusView,
     TaskUpdateView,
 )
 
@@ -14,4 +15,7 @@ urlpatterns = [
     path("<uuid:pk>/", TaskDetailView.as_view(), name="task-detail"),
     path("<uuid:pk>/edit/", TaskUpdateView.as_view(), name="task-update"),
     path("<uuid:pk>/delete/", TaskDeleteView.as_view(), name="task-delete"),
+    path(
+        "<uuid:pk>/toggle/", TaskToggleStatusView.as_view(), name="task-toggle-status"
+    ),
 ]

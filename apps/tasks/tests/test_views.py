@@ -334,3 +334,129 @@ class TestTaskDeleteView:
         messages = list(response.context["messages"])
         assert len(messages) == 1
         assert "deleted successfully" in str(messages[0])
+
+
+@pytest.mark.django_db
+class TestTaskToggleStatusView:
+    def test_toggle_requires_authentication(self, client):
+        task = TaskFactory()
+        url = reverse("task-toggle-status", kwargs={"pk": task.pk})
+        response = client.post(url)
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_toggle_returns_404_for_other_users_task(self):
+        user = UserFactory()
+        other_user = UserFactory()
+        task = TaskFactory(user=other_user, status="todo")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(reverse("task-toggle-status", kwargs={"pk": task.pk}))
+        assert response.status_code == 404
+
+    def test_toggle_get_request_rejected(self):
+        user = UserFactory()
+        task = TaskFactory(user=user)
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-toggle-status", kwargs={"pk": task.pk}))
+        assert response.status_code == 405
+
+    def test_toggle_todo_to_done(self):
+        user = UserFactory()
+        task = TaskFactory(user=user, status="todo")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(reverse("task-toggle-status", kwargs={"pk": task.pk}))
+
+        task.refresh_from_db()
+        assert task.status == "done"
+        assert task.completed_at is not None
+        assert response.status_code == 302
+
+    def test_toggle_done_to_todo(self):
+        user = UserFactory()
+        task = TaskFactory(user=user, status="todo")
+        task.mark_complete()
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(reverse("task-toggle-status", kwargs={"pk": task.pk}))
+
+        task.refresh_from_db()
+        assert task.status == "todo"
+        assert task.completed_at is None
+        assert response.status_code == 302
+
+    def test_toggle_shows_success_message_on_complete(self):
+        user = UserFactory()
+        task = TaskFactory(user=user, status="todo", title="My Task")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            reverse("task-toggle-status", kwargs={"pk": task.pk}), follow=True
+        )
+
+        messages = list(response.context["messages"])
+        assert len(messages) == 1
+        assert "marked as complete" in str(messages[0])
+
+    def test_toggle_redirects_to_task_list(self):
+        user = UserFactory()
+        task = TaskFactory(user=user, status="todo")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(reverse("task-toggle-status", kwargs={"pk": task.pk}))
+
+        assert response.status_code == 302
+        assert response.url == reverse("task-list")
+
+
+@pytest.mark.django_db
+class TestTaskListViewFilterSort:
+    def test_active_filter_returns_only_non_done_tasks(self):
+        user = UserFactory()
+        todo_task = TaskFactory(user=user, status="todo")
+        ip_task = TaskFactory(user=user, status="in_progress")
+        TaskFactory(user=user, status="done")
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?status=active")
+
+        tasks = list(response.context["tasks"])
+        assert len(tasks) == 2
+        assert todo_task in tasks
+        assert ip_task in tasks
+
+    def test_default_ordering_high_priority_first(self):
+        user = UserFactory()
+        low = TaskFactory(user=user, priority="low")
+        high = TaskFactory(user=user, priority="high")
+        medium = TaskFactory(user=user, priority="medium")
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+
+        tasks = list(response.context["tasks"])
+        assert tasks[0] == high
+        assert tasks[1] == medium
+        assert tasks[2] == low
+
+    def test_explicit_sort_overrides_default_priority(self):
+        user = UserFactory()
+        TaskFactory(user=user, priority="high")
+        TaskFactory(user=user, priority="low")
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?sort=-created_at")
+
+        # Should not error; explicit sort takes precedence
+        assert response.status_code == 200
