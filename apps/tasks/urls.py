@@ -1,6 +1,13 @@
 from django.urls import path
 
 from apps.tasks.views import (
+    TagAutocompleteView,
+    TagBulkEditView,
+    TagCreateView,
+    TagDeleteView,
+    TagListView,
+    TagQuickCreateView,
+    TagUpdateView,
     TaskCreateView,
     TaskDeleteView,
     TaskDetailView,
@@ -18,4 +25,12 @@ urlpatterns = [
     path(
         "<uuid:pk>/toggle/", TaskToggleStatusView.as_view(), name="task-toggle-status"
     ),
+    # Tag URLs
+    path("tags/", TagListView.as_view(), name="tag-list"),
+    path("tags/create/", TagCreateView.as_view(), name="tag-create"),
+    path("tags/<uuid:pk>/edit/", TagUpdateView.as_view(), name="tag-update"),
+    path("tags/<uuid:pk>/delete/", TagDeleteView.as_view(), name="tag-delete"),
+    path("tags/quick-create/", TagQuickCreateView.as_view(), name="tag-quick-create"),
+    path("tags/autocomplete/", TagAutocompleteView.as_view(), name="tag-autocomplete"),
+    path("tags/bulk-edit/", TagBulkEditView.as_view(), name="tag-bulk-edit"),
 ]

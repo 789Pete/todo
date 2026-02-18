@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{% if object %}Edit Task{% else %}Create Task{% endif %} - Todo App{% endblock %}
 
@@ -19,18 +20,51 @@
             {% endif %}
 
             {% for field in form %}
-            <div class="mb-3">
-                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}
-                    {% for error in field.errors %}
-                        <div class="invalid-feedback d-block">{{ error }}</div>
-                    {% endfor %}
+                {% if field.name == "tags" %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    <div class="d-flex flex-wrap gap-2" id="tag-selection">
+                        {% for checkbox in field %}
+                        <label class="tag-select-option" style="cursor: pointer;">
+                            {{ checkbox.tag }}
+                            <span class="badge fs-6" style="background-color: #4ECDC4; opacity: 0.6;">
+                                {{ checkbox.choice_label }}
+                            </span>
+                        </label>
+                        {% empty %}
+                        <p class="text-muted mb-0">No tags yet. <a href="{% url 'tag-create' %}">Create one</a></p>
+                        {% endfor %}
+                    </div>
+                    {% if field.errors %}
+                        {% for error in field.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    <div class="form-text">Select up to 5 tags. <a href="{% url 'tag-list' %}">Manage tags</a></div>
+
+                    <!-- Quick Add Tag -->
+                    <div class="mt-2">
+                        <div class="input-group input-group-sm" style="max-width: 300px;">
+                            <input type="text" class="form-control" id="quick-tag-name" placeholder="New tag name...">
+                            <button type="button" class="btn btn-outline-secondary" id="quick-tag-btn">Add Tag</button>
+                        </div>
+                        <div id="quick-tag-feedback" class="small mt-1"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        {% for error in field.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    {% if field.help_text %}
+                        <div class="form-text">{{ field.help_text }}</div>
+                    {% endif %}
+                </div>
                 {% endif %}
-                {% if field.help_text %}
-                    <div class="form-text">{{ field.help_text }}</div>
-                {% endif %}
-            </div>
             {% endfor %}
 
             <div class="d-flex flex-wrap gap-2">
@@ -42,4 +76,24 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tag-select-option input[type="checkbox"] {
+    display: none;
+}
+.tag-select-option input[type="checkbox"]:checked + .badge {
+    opacity: 1 !important;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px #333;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tag color map from server
+var TAG_COLORS = {{ form.tag_colors|safe }};
+</script>
+<script src="{% static 'js/tag-autocomplete.js' %}"></script>
 {% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}My Tags - Todo App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>My Tags</h1>
+    <a href="{% url 'tag-create' %}" class="btn btn-primary">New Tag</a>
+</div>
+
+{% if tags %}
+<form method="post" action="{% url 'tag-bulk-edit' %}" id="bulk-form">
+    {% csrf_token %}
+    <div class="mb-3 d-flex flex-wrap gap-2 align-items-center" id="bulk-actions" style="display: none !important;">
+        <span class="text-muted" id="selected-count">0 selected</span>
+        <select name="bulk_action" class="form-select form-select-sm" style="width: auto;">
+            <option value="">Bulk Actions...</option>
+            <option value="delete">Delete Selected</option>
+            {% for hex, label in color_choices %}
+            <option value="color:{{ hex }}">Color: {{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">
+                        <input type="checkbox" class="form-check-input" id="select-all">
+                    </th>
+                    <th>Tag</th>
+                    <th>Color</th>
+                    <th>Tasks</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tag in tags %}
+                <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input tag-checkbox" name="tag_ids" value="{{ tag.pk }}">
+                    </td>
+                    <td>
+                        <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                    </td>
+                    <td>
+                        <span class="d-inline-block rounded-circle" style="width: 20px; height: 20px; background-color: {{ tag.color }};"></span>
+                        <small class="text-muted ms-1">{{ tag.color }}</small>
+                    </td>
+                    <td>{{ tag.num_tasks }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'tag-update' pk=tag.pk %}" class="btn btn-sm btn-outline-primary touch-target">Edit</a>
+                        <a href="{% url 'tag-delete' pk=tag.pk %}" class="btn btn-sm btn-outline-danger touch-target">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+{% else %}
+<div class="text-center py-5">
+    <p class="text-muted fs-5">No tags yet. Create your first tag!</p>
+    <a href="{% url 'tag-create' %}" class="btn btn-primary">Create Tag</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.tag-checkbox');
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectedCount = document.getElementById('selected-count');
+
+    function updateBulkUI() {
+        const checked = document.querySelectorAll('.tag-checkbox:checked').length;
+        if (checked > 0) {
+            bulkActions.style.display = 'flex !important' ? bulkActions.removeAttribute('style') : null;
+            bulkActions.classList.remove('d-none');
+            bulkActions.style.display = 'flex';
+        } else {
+            bulkActions.style.display = 'none';
+        }
+        selectedCount.textContent = checked + ' selected';
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(function(cb) { cb.checked = selectAll.checked; });
+            updateBulkUI();
+        });
+    }
+
+    checkboxes.forEach(function(cb) {
+        cb.addEventListener('change', updateBulkUI);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Tag{% else %}Create Tag{% endif %} - Todo App{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>{% if object %}Edit Tag{% else %}Create Tag{% endif %}</h1>
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <p class="mb-0">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label">Tag Name</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                    {% for error in form.name.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Color</label>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for radio in form.color %}
+                    <label class="tag-color-option position-relative" style="cursor: pointer;">
+                        {{ radio.tag }}
+                        <span class="d-inline-block rounded-circle border border-2"
+                              style="width: 36px; height: 36px; background-color: {{ radio.data.value }};"
+                              title="{{ radio.choice_label }}"></span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% if form.color.errors %}
+                    {% for error in form.color.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Preview</label>
+                <div>
+                    <span class="badge fs-6" id="tag-preview" style="background-color: #4ECDC4;">
+                        {% if object %}{{ object.name }}{% else %}Tag Name{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary touch-target">
+                    {% if object %}Update Tag{% else %}Create Tag{% endif %}
+                </button>
+                <a href="{% url 'tag-list' %}" class="btn btn-outline-secondary touch-target">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tag-color-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.tag-color-option input[type="radio"]:checked + span {
+    border-color: #000 !important;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #000;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.getElementById('{{ form.name.id_for_label }}');
+    const preview = document.getElementById('tag-preview');
+    const colorRadios = document.querySelectorAll('input[name="color"]');
+
+    if (nameInput) {
+        nameInput.addEventListener('input', function() {
+            preview.textContent = this.value || 'Tag Name';
+        });
+    }
+
+    colorRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            // The value is the hex code
+            preview.style.backgroundColor = this.value;
+        });
+        // Set initial preview color from checked radio
+        if (radio.checked) {
+            preview.style.backgroundColor = radio.value;
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Tag - Todo App{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>Delete Tag</h1>
+
+        <div class="alert alert-warning">
+            <p class="mb-0">
+                Are you sure you want to delete the tag
+                <span class="badge" style="background-color: {{ object.color }};">{{ object.name }}</span>?
+            </p>
+            {% if task_count %}
+            <p class="mt-2 mb-0">
+                This tag is used by <strong>{{ task_count }} task{{ task_count|pluralize }}</strong>.
+                The tag will be removed from those tasks, but the tasks themselves will not be deleted.
+            </p>
+            {% endif %}
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-danger touch-target">Delete Tag</button>
+                <a href="{% url 'tag-list' %}" class="btn btn-outline-secondary touch-target">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
