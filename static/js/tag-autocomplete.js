@@ -2,6 +2,19 @@
  * Tag autocomplete and quick-create functionality for task forms.
  * Depends on getCookie() from base.js and TAG_COLORS global from template.
  */
+
+function getLuminance(hex) {
+    var r = parseInt(hex.slice(1, 3), 16) / 255;
+    var g = parseInt(hex.slice(3, 5), 16) / 255;
+    var b = parseInt(hex.slice(5, 7), 16) / 255;
+    function toLinear(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function getBadgeTextColor(hex) {
+    return getLuminance(hex) > 0.179 ? '#000000' : '#ffffff';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     var tagColors = (typeof TAG_COLORS !== 'undefined') ? TAG_COLORS : {};
 
@@ -13,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var badge = label.querySelector('.badge');
             if (input && badge && tagColors[input.value]) {
                 badge.style.backgroundColor = tagColors[input.value];
+                badge.style.color = getBadgeTextColor(tagColors[input.value]);
             }
         });
     }
@@ -95,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         var item = document.createElement('button');
                         item.type = 'button';
                         item.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2 py-1';
-                        item.innerHTML = '<span class="badge" style="background-color: ' + tag.color + ';">' + tag.name + '</span> <small class="text-muted">Select</small>';
+                        item.innerHTML = '<span class="badge" style="background-color: ' + tag.color + '; color: ' + getBadgeTextColor(tag.color) + ';">' + tag.name + '</span> <small class="text-muted">Select</small>';
                         item.addEventListener('click', function() {
                             selectExistingTag(tag.id, tag.name, tag.color);
                             quickInput.value = '';
@@ -143,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
         label.className = 'tag-select-option';
         label.style.cursor = 'pointer';
         label.innerHTML = '<input type="checkbox" name="tags" value="' + id + '" checked>' +
-            '<span class="badge fs-6" style="background-color: ' + color + '; opacity: 0.6;">' + name + '</span>';
+            '<span class="badge fs-6" style="background-color: ' + color + '; color: ' + getBadgeTextColor(color) + '; opacity: 0.6;">' + name + '</span>';
         tagSelection.appendChild(label);
         tagColors[id] = color;
     }

@@ -1147,3 +1147,188 @@ class TestTaskUpdateWithTags:
         assert response.status_code == 302
         task.refresh_from_db()
         assert task.tags.count() == 0
+
+
+@pytest.mark.django_db
+class TestTagColorUpdateView:
+    def test_requires_authentication(self, client):
+        tag = TagFactory()
+        response = client.post(
+            reverse("tag-color-update", kwargs={"pk": tag.pk}),
+            json.dumps({"color": "#4ECDC4"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_updates_color_and_returns_json(self):
+        user = UserFactory()
+        tag = TagFactory(user=user, color="#FF6B6B")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            reverse("tag-color-update", kwargs={"pk": tag.pk}),
+            json.dumps({"color": "#4ECDC4"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["color"] == "#4ECDC4"
+        tag.refresh_from_db()
+        assert tag.color == "#4ECDC4"
+
+    def test_rejects_invalid_color(self):
+        user = UserFactory()
+        tag = TagFactory(user=user, color="#FF6B6B")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            reverse("tag-color-update", kwargs={"pk": tag.pk}),
+            json.dumps({"color": "#BADCOL"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert "error" in response.json()
+        tag.refresh_from_db()
+        assert tag.color == "#FF6B6B"  # unchanged
+
+    def test_returns_404_for_other_users_tag(self):
+        user = UserFactory()
+        other_user = UserFactory()
+        tag = TagFactory(user=other_user, color="#FF6B6B")
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            reverse("tag-color-update", kwargs={"pk": tag.pk}),
+            json.dumps({"color": "#4ECDC4"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 404
+        tag.refresh_from_db()
+        assert tag.color == "#FF6B6B"  # unchanged
+
+    def test_get_request_rejected(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("tag-color-update", kwargs={"pk": tag.pk}))
+        assert response.status_code == 405
+
+    def test_rejects_invalid_json(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            reverse("tag-color-update", kwargs={"pk": tag.pk}),
+            "not json",
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+
+@pytest.mark.django_db
+class TestTagExportView:
+    def test_requires_authentication(self, client):
+        response = client.get(reverse("tag-export"))
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_returns_csv_with_correct_headers(self):
+        user = UserFactory()
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(reverse("tag-export"))
+
+        assert response.status_code == 200
+        assert "text/csv" in response["Content-Type"]
+        assert "attachment" in response["Content-Disposition"]
+        assert "tags.csv" in response["Content-Disposition"]
+
+    def test_csv_contains_correct_columns(self):
+        user = UserFactory()
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(reverse("tag-export"))
+        content = response.content.decode("utf-8")
+        lines = content.strip().splitlines()
+
+        assert lines[0] == "name,color,task_count,created_at"
+
+    def test_csv_contains_user_tag_data(self):
+        user = UserFactory()
+        tag = TagFactory(user=user, name="Work", color="#4ECDC4")
+        task = TaskFactory(user=user)
+        task.tags.add(tag)
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("tag-export"))
+
+        content = response.content.decode("utf-8")
+        assert "Work" in content
+        assert "#4ECDC4" in content
+        assert ",1," in content  # task_count = 1
+
+    def test_only_exports_current_users_tags(self):
+        user = UserFactory()
+        other_user = UserFactory()
+        TagFactory(user=user, name="MyTag")
+        TagFactory(user=other_user, name="OtherTag")
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("tag-export"))
+
+        content = response.content.decode("utf-8")
+        assert "MyTag" in content
+        assert "OtherTag" not in content
+
+    def test_task_count_is_correct(self):
+        user = UserFactory()
+        tag = TagFactory(user=user, name="MultiTask")
+        TaskFactory(user=user, tags=[tag])
+        TaskFactory(user=user, tags=[tag])
+        TaskFactory(user=user, tags=[tag])
+
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("tag-export"))
+
+        content = response.content.decode("utf-8")
+        # Row: MultiTask,#color,3,datetime
+        assert "MultiTask" in content
+        lines = [row for row in content.strip().splitlines() if "MultiTask" in row]
+        assert len(lines) == 1
+        parts = lines[0].split(",")
+        assert parts[2] == "3"
+
+    def test_empty_export_has_only_header(self):
+        user = UserFactory()
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(reverse("tag-export"))
+
+        content = response.content.decode("utf-8")
+        lines = content.strip().splitlines()
+        assert len(lines) == 1  # just the header row
+
+    def test_post_request_rejected(self):
+        user = UserFactory()
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(reverse("tag-export"))
+        assert response.status_code == 405

@@ -1,11 +1,15 @@
 {% extends "base.html" %}
+{% load task_tags %}
 
 {% block title %}My Tags - Todo App{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>My Tags</h1>
-    <a href="{% url 'tag-create' %}" class="btn btn-primary">New Tag</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'tag-export' %}" class="btn btn-outline-secondary">Export CSV</a>
+        <a href="{% url 'tag-create' %}" class="btn btn-primary">New Tag</a>
+    </div>
 </div>
 
 {% if tags %}
@@ -38,16 +42,36 @@
             </thead>
             <tbody>
                 {% for tag in tags %}
-                <tr>
+                <tr data-tag-pk="{{ tag.pk }}" data-color-url="{% url 'tag-color-update' pk=tag.pk %}">
                     <td>
                         <input type="checkbox" class="form-check-input tag-checkbox" name="tag_ids" value="{{ tag.pk }}">
                     </td>
                     <td>
-                        <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                        <span class="badge" style="background-color: {{ tag.color }}; color: {{ tag.color|badge_text_color }};" data-tag-badge="{{ tag.pk }}">{{ tag.name }}</span>
                     </td>
-                    <td>
-                        <span class="d-inline-block rounded-circle" style="width: 20px; height: 20px; background-color: {{ tag.color }};"></span>
-                        <small class="text-muted ms-1">{{ tag.color }}</small>
+                    <td class="position-relative">
+                        <button type="button"
+                                class="color-swatch-btn border-0 rounded-circle p-0"
+                                style="width: 24px; height: 24px; background-color: {{ tag.color }}; cursor: pointer; vertical-align: middle;"
+                                data-tag-pk="{{ tag.pk }}"
+                                aria-label="Change color for {{ tag.name }}">
+                        </button>
+                        <small class="text-muted ms-1 color-label-{{ tag.pk }}">{{ tag.color }}</small>
+                        <div class="color-picker-dropdown border rounded shadow-sm bg-white p-2 position-absolute"
+                             id="color-picker-{{ tag.pk }}"
+                             style="display: none; z-index: 100; top: 100%; left: 0; min-width: 120px;">
+                            <div class="d-flex flex-wrap gap-1" style="width: 112px;">
+                                {% for hex, label in color_choices %}
+                                <button type="button"
+                                        class="border-0 rounded-circle color-choice"
+                                        style="width: 24px; height: 24px; background-color: {{ hex }}; cursor: pointer;"
+                                        data-hex="{{ hex }}"
+                                        data-tag-pk="{{ tag.pk }}"
+                                        title="{{ label }}">
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
                     </td>
                     <td>{{ tag.num_tasks }}</td>
                     <td class="text-end">
@@ -71,7 +95,19 @@
 
 {% block extra_js %}
 <script>
+function getLuminance(hex) {
+    var r = parseInt(hex.slice(1, 3), 16) / 255;
+    var g = parseInt(hex.slice(3, 5), 16) / 255;
+    var b = parseInt(hex.slice(5, 7), 16) / 255;
+    function toLinear(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+function getBadgeTextColor(hex) {
+    return getLuminance(hex) > 0.179 ? '#000000' : '#ffffff';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // --- Bulk select ---
     const selectAll = document.getElementById('select-all');
     const checkboxes = document.querySelectorAll('.tag-checkbox');
     const bulkActions = document.getElementById('bulk-actions');
@@ -95,9 +131,72 @@ document.addEventListener('DOMContentLoaded', function() {
             updateBulkUI();
         });
     }
+    checkboxes.forEach(function(cb) { cb.addEventListener('change', updateBulkUI); });
 
-    checkboxes.forEach(function(cb) {
-        cb.addEventListener('change', updateBulkUI);
+    // --- Inline color picker ---
+    var activeDropdown = null;
+
+    document.querySelectorAll('.color-swatch-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var pk = btn.dataset.tagPk;
+            var dropdown = document.getElementById('color-picker-' + pk);
+            if (activeDropdown && activeDropdown !== dropdown) {
+                activeDropdown.style.display = 'none';
+            }
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            activeDropdown = dropdown.style.display === 'block' ? dropdown : null;
+        });
+    });
+
+    document.addEventListener('click', function() {
+        if (activeDropdown) {
+            activeDropdown.style.display = 'none';
+            activeDropdown = null;
+        }
+    });
+
+    document.querySelectorAll('.color-choice').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var hex = btn.dataset.hex;
+            var pk = btn.dataset.tagPk;
+            var row = document.querySelector('tr[data-tag-pk="' + pk + '"]');
+            var colorUrl = row.dataset.colorUrl;
+
+            fetch(colorUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({color: hex}),
+            })
+            .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+            .then(function(result) {
+                if (result.ok) {
+                    var newColor = result.data.color;
+                    var textColor = getBadgeTextColor(newColor);
+                    // Update badge
+                    var badge = document.querySelector('[data-tag-badge="' + pk + '"]');
+                    if (badge) {
+                        badge.style.backgroundColor = newColor;
+                        badge.style.color = textColor;
+                    }
+                    // Update swatch button
+                    var swatchBtn = document.querySelector('.color-swatch-btn[data-tag-pk="' + pk + '"]');
+                    if (swatchBtn) { swatchBtn.style.backgroundColor = newColor; }
+                    // Update label
+                    var label = document.querySelector('.color-label-' + pk);
+                    if (label) { label.textContent = newColor; }
+                    // Close picker
+                    var dropdown = document.getElementById('color-picker-' + pk);
+                    if (dropdown) { dropdown.style.display = 'none'; }
+                    activeDropdown = null;
+                }
+            })
+            .catch(function() {});
+        });
     });
 });
 </script>

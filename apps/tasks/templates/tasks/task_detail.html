@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load task_tags %}
 
 {% block title %}{{ task.title }} - Todo App{% endblock %}
 
@@ -58,7 +59,7 @@
         <div class="mb-3">
             <h6 class="text-muted">Tags</h6>
             {% for tag in task.tags.all %}
-                <span class="badge" style="background-color: {{ tag.color }};">{{ tag.name }}</span>
+                <span class="badge" style="background-color: {{ tag.color }}; color: {{ tag.color|badge_text_color }};">{{ tag.name }}</span>
             {% endfor %}
         </div>
         {% endif %}

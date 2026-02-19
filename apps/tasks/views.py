@@ -1,9 +1,10 @@
+import csv
 import json
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, IntegerField, When
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views import View
@@ -321,6 +322,50 @@ class TagBulkEditView(LoginRequiredMixin, View):
             messages.warning(request, "No action selected.")
 
         return redirect("tag-list")
+
+
+class TagExportView(LoginRequiredMixin, View):
+    """CSV export of the user's tags."""
+
+    http_method_names = ["get"]
+
+    def get(self, request):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="tags.csv"'
+        writer = csv.writer(response)
+        writer.writerow(["name", "color", "task_count", "created_at"])
+        tags = (
+            Tag.objects.filter(user=request.user)
+            .annotate(num_tasks=Count("tasks"))
+            .order_by("name")
+        )
+        for tag in tags:
+            writer.writerow(
+                [tag.name, tag.color, tag.num_tasks, tag.created_at.isoformat()]
+            )
+        return response
+
+
+class TagColorUpdateView(LoginRequiredMixin, View):
+    """AJAX endpoint to update a tag's color inline."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+        color = data.get("color", "")
+        valid_colors = [c[0] for c in Tag.COLOR_CHOICES]
+        if color not in valid_colors:
+            return JsonResponse({"error": "Invalid color."}, status=400)
+
+        tag = get_object_or_404(Tag.objects.filter(user=request.user), pk=pk)
+        tag.color = color
+        tag.save(update_fields=["color"])
+        return JsonResponse({"color": tag.color})
 
 
 def _pick_auto_color(existing_colors):

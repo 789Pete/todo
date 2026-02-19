@@ -3,8 +3,10 @@ from django.urls import path
 from apps.tasks.views import (
     TagAutocompleteView,
     TagBulkEditView,
+    TagColorUpdateView,
     TagCreateView,
     TagDeleteView,
+    TagExportView,
     TagListView,
     TagQuickCreateView,
     TagUpdateView,
@@ -33,4 +35,8 @@ urlpatterns = [
     path("tags/quick-create/", TagQuickCreateView.as_view(), name="tag-quick-create"),
     path("tags/autocomplete/", TagAutocompleteView.as_view(), name="tag-autocomplete"),
     path("tags/bulk-edit/", TagBulkEditView.as_view(), name="tag-bulk-edit"),
+    path("tags/export/", TagExportView.as_view(), name="tag-export"),
+    path(
+        "tags/<uuid:pk>/color/", TagColorUpdateView.as_view(), name="tag-color-update"
+    ),
 ]
