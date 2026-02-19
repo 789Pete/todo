@@ -1482,3 +1482,317 @@ class TestTaskListViewTagFilter:
         tasks = list(response.context["tasks"])
         assert task1 in tasks
         assert task2 in tasks
+
+
+# ---------------------------------------------------------------------------
+# Story 2.5: Tag Management Interface
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestTagListViewSort:
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_default_sort_is_name_ascending(self):
+        user = UserFactory()
+        TagFactory(user=user, name="Zebra")
+        TagFactory(user=user, name="Alpha")
+        TagFactory(user=user, name="Middle")
+
+        response = self._client(user).get(reverse("tag-list"))
+
+        tags = list(response.context["tags"])
+        names = [t.name for t in tags]
+        assert names == sorted(names)
+
+    def test_sort_by_num_tasks_ascending(self):
+        user = UserFactory()
+        tag_many = TagFactory(user=user, name="Many")
+        TagFactory(user=user, name="Few")
+        TaskFactory(user=user, tags=[tag_many])
+        TaskFactory(user=user, tags=[tag_many])
+
+        response = self._client(user).get(reverse("tag-list") + "?sort=num_tasks")
+
+        tags = list(response.context["tags"])
+        counts = [t.num_tasks for t in tags]
+        assert counts == sorted(counts)
+        assert tags[-1].pk == tag_many.pk
+
+    def test_sort_by_num_tasks_descending(self):
+        user = UserFactory()
+        tag_many = TagFactory(user=user, name="Many")
+        TagFactory(user=user, name="Few")
+        TaskFactory(user=user, tags=[tag_many])
+        TaskFactory(user=user, tags=[tag_many])
+
+        response = self._client(user).get(reverse("tag-list") + "?sort=-num_tasks")
+
+        tags = list(response.context["tags"])
+        assert tags[0].pk == tag_many.pk
+
+    def test_sort_by_created_at_ascending(self):
+        user = UserFactory()
+        TagFactory(user=user, name="A")
+        TagFactory(user=user, name="B")
+
+        response = self._client(user).get(reverse("tag-list") + "?sort=created_at")
+
+        tags = list(response.context["tags"])
+        created_ats = [t.created_at for t in tags]
+        assert created_ats == sorted(created_ats)
+
+    def test_invalid_sort_falls_back_to_name(self):
+        user = UserFactory()
+        TagFactory(user=user, name="Zebra")
+        TagFactory(user=user, name="Alpha")
+
+        response = self._client(user).get(reverse("tag-list") + "?sort=invalid")
+
+        tags = list(response.context["tags"])
+        names = [t.name for t in tags]
+        assert names == sorted(names)
+
+
+@pytest.mark.django_db
+class TestTagListViewSearch:
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_search_returns_matching_tags_case_insensitive(self):
+        user = UserFactory()
+        TagFactory(user=user, name="FooBar")
+        TagFactory(user=user, name="Baz")
+
+        response = self._client(user).get(reverse("tag-list") + "?q=foo")
+
+        tags = list(response.context["tags"])
+        assert len(tags) == 1
+        assert tags[0].name == "FooBar"
+
+    def test_empty_search_returns_all_tags(self):
+        user = UserFactory()
+        TagFactory(user=user, name="Alpha")
+        TagFactory(user=user, name="Beta")
+
+        response = self._client(user).get(reverse("tag-list") + "?q=")
+
+        assert response.context["tags"].count() == 2
+
+    def test_other_users_tags_never_returned(self):
+        user = UserFactory()
+        other = UserFactory()
+        TagFactory(user=other, name="foo")
+
+        response = self._client(user).get(reverse("tag-list") + "?q=foo")
+
+        assert response.context["tags"].count() == 0
+
+
+@pytest.mark.django_db
+class TestTagListViewUnused:
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_show_unused_returns_only_unused_tags(self):
+        user = UserFactory()
+        used = TagFactory(user=user, name="Used")
+        unused = TagFactory(user=user, name="Unused")
+        TaskFactory(user=user, tags=[used])
+
+        response = self._client(user).get(reverse("tag-list") + "?show_unused=1")
+
+        tags = list(response.context["tags"])
+        assert len(tags) == 1
+        assert tags[0].pk == unused.pk
+
+    def test_without_param_returns_all_tags(self):
+        user = UserFactory()
+        used = TagFactory(user=user, name="Used")
+        unused = TagFactory(user=user, name="Unused")
+        TaskFactory(user=user, tags=[used])
+
+        response = self._client(user).get(reverse("tag-list"))
+
+        pks = [t.pk for t in response.context["tags"]]
+        assert used.pk in pks
+        assert unused.pk in pks
+
+
+@pytest.mark.django_db
+class TestTagNameUpdateView:
+    def _url(self, tag):
+        return reverse("tag-name-update", kwargs={"pk": tag.pk})
+
+    def test_requires_authentication(self, client):
+        tag = TagFactory()
+        response = client.post(
+            self._url(tag),
+            data=json.dumps({"name": "x"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 302
+
+    def test_rename_success(self):
+        user = UserFactory()
+        tag = TagFactory(user=user, name="Old")
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(
+            self._url(tag),
+            data=json.dumps({"name": "New"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "New"
+        tag.refresh_from_db()
+        assert tag.name == "New"
+
+    def test_rejects_empty_name(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(
+            self._url(tag),
+            data=json.dumps({"name": "  "}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+
+    def test_rejects_duplicate_name_case_insensitive(self):
+        user = UserFactory()
+        TagFactory(user=user, name="Work")
+        tag = TagFactory(user=user, name="Personal")
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(
+            self._url(tag),
+            data=json.dumps({"name": "work"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+
+    def test_allows_rename_to_same_name_idempotent(self):
+        user = UserFactory()
+        tag = TagFactory(user=user, name="Work")
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(
+            self._url(tag),
+            data=json.dumps({"name": "Work"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "Work"
+
+    def test_returns_404_for_other_users_tag(self):
+        user = UserFactory()
+        other_tag = TagFactory()
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(
+            self._url(other_tag),
+            data=json.dumps({"name": "x"}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 404
+
+    def test_rejects_get_request(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        c = Client()
+        c.force_login(user)
+
+        response = c.get(self._url(tag))
+
+        assert response.status_code == 405
+
+
+@pytest.mark.django_db
+class TestTagMergeView:
+    def _url(self, tag):
+        return reverse("tag-merge", kwargs={"pk": tag.pk})
+
+    def test_requires_authentication(self, client):
+        tag = TagFactory()
+        response = client.get(self._url(tag))
+        assert response.status_code == 302
+
+    def test_get_renders_form_with_source_and_other_tags(self):
+        user = UserFactory()
+        tag1 = TagFactory(user=user)
+        tag2 = TagFactory(user=user)
+        c = Client()
+        c.force_login(user)
+
+        response = c.get(self._url(tag1))
+
+        assert response.status_code == 200
+        assert response.context["source_tag"] == tag1
+        assert tag2 in response.context["other_tags"]
+
+    def test_get_returns_404_for_other_users_source_tag(self):
+        user = UserFactory()
+        other_tag = TagFactory()
+        c = Client()
+        c.force_login(user)
+
+        response = c.get(self._url(other_tag))
+
+        assert response.status_code == 404
+
+    def test_post_reassigns_tasks_to_target_and_deletes_source(self):
+        user = UserFactory()
+        source = TagFactory(user=user)
+        target = TagFactory(user=user)
+        task = TaskFactory(user=user)
+        task.tags.add(source)
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(self._url(source), {"target_tag": str(target.pk)})
+
+        assert response.status_code == 302
+        assert not Tag.objects.filter(pk=source.pk).exists()
+        task.refresh_from_db()
+        assert target in task.tags.all()
+
+    def test_post_merge_with_self_redirects_with_error_does_not_delete(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(self._url(tag), {"target_tag": str(tag.pk)})
+
+        assert response.status_code == 302
+        assert Tag.objects.filter(pk=tag.pk).exists()
+
+    def test_post_rejects_target_from_other_user(self):
+        user = UserFactory()
+        source = TagFactory(user=user)
+        other_target = TagFactory()
+        c = Client()
+        c.force_login(user)
+
+        response = c.post(self._url(source), {"target_tag": str(other_target.pk)})
+
+        assert response.status_code == 404

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load task_tags %}
+
+{% block title %}Merge Tag - Todo App{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>Merge Tag</h1>
+
+        <div class="alert alert-warning">
+            <p class="mb-0">
+                Merge
+                <span class="badge" style="background-color: {{ source_tag.color }}; color: {{ source_tag.color|badge_text_color }};">{{ source_tag.name }}</span>
+                into another tag. All tasks currently tagged with
+                <strong>{{ source_tag.name }}</strong> will be tagged with the target tag instead.
+                The <strong>{{ source_tag.name }}</strong> tag will then be deleted.
+                <strong>This action cannot be undone.</strong>
+            </p>
+        </div>
+
+        {% if other_tags %}
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="target_tag" class="form-label">Merge into:</label>
+                <select name="target_tag" id="target_tag" class="form-select" required>
+                    <option value="">Select a tag...</option>
+                    {% for tag in other_tags %}
+                    <option value="{{ tag.pk }}">{{ tag.name }} ({{ tag.num_tasks }} task{{ tag.num_tasks|pluralize }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-warning touch-target">Merge Tag</button>
+                <a href="{% url 'tag-list' %}" class="btn btn-outline-secondary touch-target">Cancel</a>
+            </div>
+        </form>
+        {% else %}
+        <div class="alert alert-info">
+            <p class="mb-0">No other tags available to merge into. Create another tag first.</p>
+        </div>
+        <a href="{% url 'tag-list' %}" class="btn btn-outline-secondary">Back to Tags</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -12,6 +12,21 @@
     </div>
 </div>
 
+<form method="get" class="mb-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="text" name="q" value="{{ current_q }}" class="form-control form-control-sm" placeholder="Search tags..." style="width: 200px;">
+        {% if current_sort != "name" %}<input type="hidden" name="sort" value="{{ current_sort }}">{% endif %}
+        {% if show_unused %}<input type="hidden" name="show_unused" value="1">{% endif %}
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
+        <a href="{{ toggle_unused_url }}" class="btn btn-sm btn-outline-secondary">
+            {% if show_unused %}Show all{% else %}Show unused only{% endif %}
+        </a>
+        {% if current_q or show_unused %}
+        <a href="{% url 'tag-list' %}" class="btn btn-sm btn-link text-muted">Clear filters</a>
+        {% endif %}
+    </div>
+</form>
+
 {% if tags %}
 <form method="post" action="{% url 'tag-bulk-edit' %}" id="bulk-form">
     {% csrf_token %}
@@ -34,20 +49,42 @@
                     <th style="width: 40px;">
                         <input type="checkbox" class="form-check-input" id="select-all">
                     </th>
-                    <th>Tag</th>
+                    <th>
+                        <a href="?sort=name{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-decoration-none text-dark">Tag{% if current_sort == "name" %} ↑{% elif current_sort == "-name" %} ↓{% endif %}</a>
+                        {% if current_sort == "name" %}<a href="?sort=-name{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-muted small ms-1">↓</a>{% endif %}
+                    </th>
                     <th>Color</th>
-                    <th>Tasks</th>
+                    <th>
+                        <a href="?sort=num_tasks{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-decoration-none text-dark">Tasks{% if current_sort == "num_tasks" %} ↑{% elif current_sort == "-num_tasks" %} ↓{% endif %}</a>
+                        {% if current_sort == "num_tasks" %}<a href="?sort=-num_tasks{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-muted small ms-1">↓</a>{% elif current_sort != "-num_tasks" %}<a href="?sort=-num_tasks{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-muted small ms-1">↓</a>{% endif %}
+                    </th>
+                    <th>
+                        <a href="?sort=created_at{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-decoration-none text-dark">Created{% if current_sort == "created_at" %} ↑{% elif current_sort == "-created_at" %} ↓{% endif %}</a>
+                        {% if current_sort == "created_at" %}<a href="?sort=-created_at{% if tag_list_base_params %}&{{ tag_list_base_params }}{% endif %}" class="text-muted small ms-1">↓</a>{% endif %}
+                    </th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for tag in tags %}
-                <tr data-tag-pk="{{ tag.pk }}" data-color-url="{% url 'tag-color-update' pk=tag.pk %}">
+                <tr data-tag-pk="{{ tag.pk }}" data-color-url="{% url 'tag-color-update' pk=tag.pk %}"{% if tag.num_tasks == 0 %} class="text-muted"{% endif %}>
                     <td>
                         <input type="checkbox" class="form-check-input tag-checkbox" name="tag_ids" value="{{ tag.pk }}">
                     </td>
-                    <td>
-                        <span class="badge" style="background-color: {{ tag.color }}; color: {{ tag.color|badge_text_color }};" data-tag-badge="{{ tag.pk }}">{{ tag.name }}</span>
+                    <td class="position-relative">
+                        <span class="badge"
+                              style="background-color: {{ tag.color }}; color: {{ tag.color|badge_text_color }}; cursor: pointer;"
+                              data-tag-badge="{{ tag.pk }}"
+                              data-name-editable="{{ tag.pk }}"
+                              title="Click to rename">{{ tag.name }}</span>
+                        <input type="text"
+                               class="form-control form-control-sm d-none name-edit-input"
+                               data-tag-pk="{{ tag.pk }}"
+                               data-name-url="{% url 'tag-name-update' pk=tag.pk %}"
+                               value="{{ tag.name }}"
+                               maxlength="50"
+                               style="display: inline-block; width: 120px;">
+                        <span class="text-danger small name-error-{{ tag.pk }}" style="display:none;"></span>
                     </td>
                     <td class="position-relative">
                         <button type="button"
@@ -74,7 +111,9 @@
                         </div>
                     </td>
                     <td>{{ tag.num_tasks }}</td>
+                    <td><small class="text-muted">{{ tag.created_at|date:"M d, Y" }}</small></td>
                     <td class="text-end">
+                        <a href="{% url 'tag-merge' pk=tag.pk %}" class="btn btn-sm btn-outline-secondary touch-target">Merge</a>
                         <a href="{% url 'tag-update' pk=tag.pk %}" class="btn btn-sm btn-outline-primary touch-target">Edit</a>
                         <a href="{% url 'tag-delete' pk=tag.pk %}" class="btn btn-sm btn-outline-danger touch-target">Delete</a>
                     </td>
@@ -86,8 +125,13 @@
 </form>
 {% else %}
 <div class="text-center py-5">
+    {% if current_q or show_unused %}
+    <p class="text-muted fs-5">No tags match your filters.</p>
+    <a href="{% url 'tag-list' %}" class="btn btn-outline-secondary">Clear filters</a>
+    {% else %}
     <p class="text-muted fs-5">No tags yet. Create your first tag!</p>
     <a href="{% url 'tag-create' %}" class="btn btn-primary">Create Tag</a>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -154,6 +198,85 @@ document.addEventListener('DOMContentLoaded', function() {
             activeDropdown.style.display = 'none';
             activeDropdown = null;
         }
+    });
+
+    // --- Inline name editing ---
+    document.querySelectorAll('[data-name-editable]').forEach(function(badge) {
+        badge.addEventListener('click', function() {
+            var pk = badge.dataset.nameEditable;
+            var input = document.querySelector('.name-edit-input[data-tag-pk="' + pk + '"]');
+            var errorSpan = document.querySelector('.name-error-' + pk);
+            badge.classList.add('d-none');
+            input.classList.remove('d-none');
+            input.style.display = 'inline-block';
+            input.focus();
+            input.select();
+            if (errorSpan) { errorSpan.style.display = 'none'; }
+        });
+    });
+
+    function submitNameEdit(input) {
+        var pk = input.dataset.tagPk;
+        var url = input.dataset.nameUrl;
+        var badge = document.querySelector('[data-tag-badge="' + pk + '"]');
+        var errorSpan = document.querySelector('.name-error-' + pk);
+        var newName = input.value.trim();
+
+        if (!newName) {
+            if (errorSpan) { errorSpan.textContent = 'Name cannot be empty.'; errorSpan.style.display = 'inline'; }
+            return;
+        }
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({name: newName}),
+        })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+        .then(function(result) {
+            if (result.ok) {
+                badge.textContent = result.data.name;
+                input.value = result.data.name;
+                input.classList.add('d-none');
+                badge.classList.remove('d-none');
+                if (errorSpan) { errorSpan.style.display = 'none'; }
+            } else {
+                if (errorSpan) { errorSpan.textContent = result.data.error || 'Error updating name.'; errorSpan.style.display = 'inline'; }
+            }
+        })
+        .catch(function() {
+            if (errorSpan) { errorSpan.textContent = 'Network error.'; errorSpan.style.display = 'inline'; }
+        });
+    }
+
+    function cancelNameEdit(input) {
+        var pk = input.dataset.tagPk;
+        var badge = document.querySelector('[data-tag-badge="' + pk + '"]');
+        var errorSpan = document.querySelector('.name-error-' + pk);
+        input.value = badge.textContent;
+        input.classList.add('d-none');
+        badge.classList.remove('d-none');
+        if (errorSpan) { errorSpan.style.display = 'none'; }
+    }
+
+    document.querySelectorAll('.name-edit-input').forEach(function(input) {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); submitNameEdit(input); }
+            else if (e.key === 'Escape') { cancelNameEdit(input); }
+        });
+        input.addEventListener('blur', function() {
+            // Only submit if the value changed
+            var pk = input.dataset.tagPk;
+            var badge = document.querySelector('[data-tag-badge="' + pk + '"]');
+            if (input.value.trim() !== badge.textContent.trim()) {
+                submitNameEdit(input);
+            } else {
+                cancelNameEdit(input);
+            }
+        });
     });
 
     document.querySelectorAll('.color-choice').forEach(function(btn) {

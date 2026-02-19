@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, IntegerField, When
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import (
@@ -227,6 +227,15 @@ class TaskToggleStatusView(LoginRequiredMixin, View):
 
 # --- Tag Views ---
 
+TAG_SORT_OPTIONS = {
+    "name": "name",
+    "-name": "-name",
+    "num_tasks": "num_tasks",
+    "-num_tasks": "-num_tasks",
+    "created_at": "created_at",
+    "-created_at": "-created_at",
+}
+
 
 class TagListView(LoginRequiredMixin, ListView):
     model = Tag
@@ -234,15 +243,37 @@ class TagListView(LoginRequiredMixin, ListView):
     context_object_name = "tags"
 
     def get_queryset(self):
-        return (
-            Tag.objects.filter(user=self.request.user)
-            .annotate(num_tasks=Count("tasks"))
-            .order_by("name")
+        qs = Tag.objects.filter(user=self.request.user).annotate(
+            num_tasks=Count("tasks")
         )
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(name__icontains=q)
+        if self.request.GET.get("show_unused"):
+            qs = qs.filter(num_tasks=0)
+        sort = self.request.GET.get("sort", "name")
+        qs = qs.order_by(TAG_SORT_OPTIONS.get(sort, "name"))
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["color_choices"] = Tag.COLOR_CHOICES
+        context["current_sort"] = self.request.GET.get("sort", "name")
+        context["current_q"] = self.request.GET.get("q", "")
+        context["show_unused"] = bool(self.request.GET.get("show_unused"))
+
+        base_params = self.request.GET.copy()
+        base_params.pop("sort", None)
+        context["tag_list_base_params"] = base_params.urlencode()
+
+        toggle_unused_params = self.request.GET.copy()
+        if toggle_unused_params.get("show_unused"):
+            toggle_unused_params.pop("show_unused")
+        else:
+            toggle_unused_params["show_unused"] = "1"
+        toggle_unused_params.pop("page", None)
+        context["toggle_unused_url"] = "?" + toggle_unused_params.urlencode()
+
         return context
 
 
@@ -424,6 +455,39 @@ class TagExportView(LoginRequiredMixin, View):
         return response
 
 
+class TagNameUpdateView(LoginRequiredMixin, View):
+    """AJAX endpoint to update a tag's name inline."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+        name = data.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Tag name cannot be empty."}, status=400)
+        if len(name) > 50:
+            return JsonResponse(
+                {"error": "Tag name cannot exceed 50 characters."}, status=400
+            )
+
+        tag = get_object_or_404(Tag.objects.filter(user=request.user), pk=pk)
+
+        if (
+            Tag.objects.filter(user=request.user, name__iexact=name)
+            .exclude(pk=pk)
+            .exists()
+        ):
+            return JsonResponse({"error": f"Tag '{name}' already exists."}, status=400)
+
+        tag.name = name
+        tag.save(update_fields=["name"])
+        return JsonResponse({"name": tag.name})
+
+
 class TagColorUpdateView(LoginRequiredMixin, View):
     """AJAX endpoint to update a tag's color inline."""
 
@@ -444,6 +508,47 @@ class TagColorUpdateView(LoginRequiredMixin, View):
         tag.color = color
         tag.save(update_fields=["color"])
         return JsonResponse({"color": tag.color})
+
+
+class TagMergeView(LoginRequiredMixin, View):
+    """Merge one tag into another, reassigning all tasks."""
+
+    http_method_names = ["get", "post"]
+
+    def get(self, request, pk):
+        source_tag = get_object_or_404(Tag.objects.filter(user=request.user), pk=pk)
+        other_tags = (
+            Tag.objects.filter(user=request.user)
+            .exclude(pk=pk)
+            .annotate(num_tasks=Count("tasks"))
+            .order_by("name")
+        )
+        return render(
+            request,
+            "tasks/tag_merge.html",
+            {"source_tag": source_tag, "other_tags": other_tags},
+        )
+
+    def post(self, request, pk):
+        source_tag = get_object_or_404(Tag.objects.filter(user=request.user), pk=pk)
+        target_pk = request.POST.get("target_tag", "")
+        target_tag = get_object_or_404(
+            Tag.objects.filter(user=request.user), pk=target_pk
+        )
+
+        if source_tag.pk == target_tag.pk:
+            messages.error(request, "Cannot merge a tag with itself.")
+            return redirect("tag-merge", pk=pk)
+
+        for task in source_tag.tasks.all():
+            task.tags.add(target_tag)
+
+        source_name = source_tag.name
+        source_tag.delete()
+        messages.success(
+            request, f'Tag "{source_name}" merged into "{target_tag.name}".'
+        )
+        return redirect("tag-list")
 
 
 def _pick_auto_color(existing_colors):

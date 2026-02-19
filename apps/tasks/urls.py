@@ -8,6 +8,8 @@ from apps.tasks.views import (
     TagDeleteView,
     TagExportView,
     TagListView,
+    TagMergeView,
+    TagNameUpdateView,
     TagQuickCreateView,
     TagUpdateView,
     TaskCreateView,
@@ -39,4 +41,6 @@ urlpatterns = [
     path(
         "tags/<uuid:pk>/color/", TagColorUpdateView.as_view(), name="tag-color-update"
     ),
+    path("tags/<uuid:pk>/name/", TagNameUpdateView.as_view(), name="tag-name-update"),
+    path("tags/<uuid:pk>/merge/", TagMergeView.as_view(), name="tag-merge"),
 ]
