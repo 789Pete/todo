@@ -1,4 +1,4 @@
-from apps.tasks.templatetags.task_tags import badge_text_color
+from apps.tasks.templatetags.task_tags import badge_text_color, get_item
 
 
 class TestBadgeTextColor:
@@ -53,3 +53,23 @@ class TestBadgeTextColor:
     def test_invalid_color_returns_white(self):
         # Short/invalid hex falls back to white
         assert badge_text_color("#FFF") == "#ffffff"
+
+
+class TestGetItemFilter:
+    """Tests for the get_item template filter."""
+
+    def test_returns_correct_value_by_string_key(self):
+        d = {"foo": "bar", "baz": "qux"}
+        assert get_item(d, "foo") == "bar"
+
+    def test_returns_none_for_missing_key(self):
+        d = {"foo": "bar"}
+        assert get_item(d, "missing") is None
+
+    def test_int_key_is_coerced_to_string(self):
+        d = {"42": "answer"}
+        assert get_item(d, 42) == "answer"
+
+    def test_uuid_like_key_coerced_to_string(self):
+        d = {"abc-123": "value"}
+        assert get_item(d, "abc-123") == "value"

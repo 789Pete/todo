@@ -1332,3 +1332,153 @@ class TestTagExportView:
 
         response = client.post(reverse("tag-export"))
         assert response.status_code == 405
+
+
+@pytest.mark.django_db
+class TestTaskListViewTagFilter:
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_single_tag_filter_returns_only_matching_tasks(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        task_with = TaskFactory(user=user, tags=[tag])
+        task_without = TaskFactory(user=user)
+
+        response = self._client(user).get(reverse("task-list") + f"?tags={tag.pk}")
+
+        tasks = list(response.context["tasks"])
+        assert task_with in tasks
+        assert task_without not in tasks
+
+    def test_and_mode_returns_only_tasks_with_all_tags(self):
+        user = UserFactory()
+        tag1 = TagFactory(user=user)
+        tag2 = TagFactory(user=user)
+        task_both = TaskFactory(user=user, tags=[tag1, tag2])
+        task_one = TaskFactory(user=user, tags=[tag1])
+        task_none = TaskFactory(user=user)
+
+        response = self._client(user).get(
+            reverse("task-list") + f"?tags={tag1.pk}&tags={tag2.pk}&tag_mode=and"
+        )
+
+        tasks = list(response.context["tasks"])
+        assert task_both in tasks
+        assert task_one not in tasks
+        assert task_none not in tasks
+
+    def test_or_mode_returns_tasks_with_any_tag(self):
+        user = UserFactory()
+        tag1 = TagFactory(user=user)
+        tag2 = TagFactory(user=user)
+        task_tag1 = TaskFactory(user=user, tags=[tag1])
+        task_tag2 = TaskFactory(user=user, tags=[tag2])
+        task_none = TaskFactory(user=user)
+
+        response = self._client(user).get(
+            reverse("task-list") + f"?tags={tag1.pk}&tags={tag2.pk}&tag_mode=or"
+        )
+
+        tasks = list(response.context["tasks"])
+        assert task_tag1 in tasks
+        assert task_tag2 in tasks
+        assert task_none not in tasks
+
+    def test_tag_filter_combined_with_status_filter(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        task_todo = TaskFactory(user=user, status="todo", tags=[tag])
+        task_done = TaskFactory(user=user, status="done", tags=[tag])
+
+        response = self._client(user).get(
+            reverse("task-list") + f"?tags={tag.pk}&status=todo"
+        )
+
+        tasks = list(response.context["tasks"])
+        assert task_todo in tasks
+        assert task_done not in tasks
+
+    def test_tag_filter_combined_with_sort_param(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        task_high = TaskFactory(user=user, priority="high", tags=[tag])
+        task_low = TaskFactory(user=user, priority="low", tags=[tag])
+
+        # sort=priority sorts ascending alphabetically: "high" < "low"
+        response = self._client(user).get(
+            reverse("task-list") + f"?tags={tag.pk}&sort=priority"
+        )
+
+        tasks = list(response.context["tasks"])
+        assert tasks[0] == task_high
+        assert tasks[1] == task_low
+
+    def test_invalid_tag_uuid_in_filter_is_ignored(self):
+        user = UserFactory()
+        response = self._client(user).get(
+            reverse("task-list") + "?tags=00000000-0000-0000-0000-000000000000"
+        )
+        assert response.status_code == 200
+
+    def test_other_users_tag_uuid_is_ignored(self):
+        user = UserFactory()
+        other_user = UserFactory()
+        other_tag = TagFactory(user=other_user)
+        TaskFactory(user=user)
+
+        response = self._client(user).get(
+            reverse("task-list") + f"?tags={other_tag.pk}"
+        )
+
+        # No 500 error, task is not filtered out (other user's tag ignored in context)
+        assert response.status_code == 200
+        # active_tags only shows user-scoped tags
+        assert other_tag not in list(response.context["active_tags"])
+
+    def test_active_tags_context_contains_correct_tags(self):
+        user = UserFactory()
+        tag1 = TagFactory(user=user)
+        tag2 = TagFactory(user=user)
+
+        response = self._client(user).get(
+            reverse("task-list") + f"?tags={tag1.pk}&tags={tag2.pk}"
+        )
+
+        active_tags = list(response.context["active_tags"])
+        assert tag1 in active_tags
+        assert tag2 in active_tags
+
+    def test_task_total_context_reflects_filtered_count(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        TaskFactory(user=user, tags=[tag])
+        TaskFactory(user=user, tags=[tag])
+        TaskFactory(user=user)  # not tagged
+
+        response = self._client(user).get(reverse("task-list") + f"?tags={tag.pk}")
+
+        assert response.context["task_total"] == 2
+
+    def test_tag_mode_defaults_to_and(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        TaskFactory(user=user, tags=[tag])
+
+        response = self._client(user).get(reverse("task-list") + f"?tags={tag.pk}")
+
+        assert response.context["tag_mode"] == "and"
+
+    def test_no_tag_filter_returns_all_user_tasks(self):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        task1 = TaskFactory(user=user, tags=[tag])
+        task2 = TaskFactory(user=user)
+
+        response = self._client(user).get(reverse("task-list"))
+
+        tasks = list(response.context["tasks"])
+        assert task1 in tasks
+        assert task2 in tasks

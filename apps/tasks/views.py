@@ -36,6 +36,35 @@ PRIORITY_ORDER = Case(
 )
 
 
+def _build_tag_add_url(request, tag_pk):
+    """Return URL with tag_pk added to the 'tags' filter param."""
+    params = request.GET.copy()
+    existing = params.getlist("tags")
+    if str(tag_pk) not in existing:
+        existing.append(str(tag_pk))
+    params.setlist("tags", existing)
+    params.pop("page", None)
+    return "?" + params.urlencode()
+
+
+def _build_tag_remove_url(request, tag_pk):
+    """Return URL with tag_pk removed from the 'tags' filter param."""
+    params = request.GET.copy()
+    existing = [t for t in params.getlist("tags") if t != str(tag_pk)]
+    params.setlist("tags", existing)
+    params.pop("page", None)
+    return "?" + params.urlencode()
+
+
+def _build_clear_tags_url(request):
+    """Return URL with all tag filter params removed."""
+    params = request.GET.copy()
+    params.pop("tags", None)
+    params.pop("tag_mode", None)
+    params.pop("page", None)
+    return "?" + params.urlencode() if params else "?"
+
+
 class TaskListView(LoginRequiredMixin, ListView):
     model = Task
     template_name = "tasks/task_list.html"
@@ -54,12 +83,61 @@ class TaskListView(LoginRequiredMixin, ListView):
             qs = qs.order_by(SORT_OPTIONS[sort])
         else:
             qs = qs.order_by(PRIORITY_ORDER, "-created_at")
+        tag_ids = self.request.GET.getlist("tags")
+        if tag_ids:
+            tag_mode = self.request.GET.get("tag_mode", "and")
+            if tag_mode == "or":
+                qs = qs.filter(tags__pk__in=tag_ids).distinct()
+            else:
+                for tag_id in tag_ids:
+                    qs = qs.filter(tags__pk=tag_id)
         return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["current_status"] = self.request.GET.get("status", "")
         context["current_sort"] = self.request.GET.get("sort", "")
+
+        tag_ids = self.request.GET.getlist("tags")
+        tag_mode = self.request.GET.get("tag_mode", "and")
+
+        active_tags = (
+            Tag.objects.filter(user=self.request.user, pk__in=tag_ids)
+            if tag_ids
+            else Tag.objects.none()
+        )
+        all_user_tags = Tag.objects.filter(user=self.request.user)
+
+        tag_add_urls = {
+            str(tag.pk): _build_tag_add_url(self.request, tag.pk)
+            for tag in all_user_tags
+        }
+        tag_remove_urls = {
+            str(tag.pk): _build_tag_remove_url(self.request, tag.pk)
+            for tag in all_user_tags
+        }
+
+        toggle_params = self.request.GET.copy()
+        toggle_params["tag_mode"] = "or" if tag_mode == "and" else "and"
+        toggle_params.pop("page", None)
+
+        page_params = self.request.GET.copy()
+        page_params.pop("page", None)
+
+        context.update(
+            {
+                "active_tag_ids": tag_ids,
+                "active_tags": active_tags,
+                "tag_mode": tag_mode,
+                "tag_add_urls": tag_add_urls,
+                "tag_remove_urls": tag_remove_urls,
+                "clear_tags_url": _build_clear_tags_url(self.request),
+                "toggle_tag_mode_url": "?" + toggle_params.urlencode(),
+                "task_total": self.get_queryset().count(),
+                "user_tags": all_user_tags,
+                "page_base_params": page_params.urlencode(),
+            }
+        )
         return context
 
 

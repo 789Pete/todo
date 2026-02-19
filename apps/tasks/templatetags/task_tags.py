@@ -4,6 +4,12 @@ register = template.Library()
 
 
 @register.filter
+def get_item(dictionary, key):
+    """Retrieve a value from a dict by key (coerces key to string)."""
+    return dictionary.get(str(key))
+
+
+@register.filter
 def badge_text_color(hex_color):
     """Return '#000000' or '#ffffff' for WCAG AA contrast on hex_color background."""
     hex_color = str(hex_color).lstrip("#")
