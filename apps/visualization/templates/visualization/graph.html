@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Network Graph - Todo App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/graph.css' %}">
+{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">Task Network Graph</h1>
+
+{# Graph container — ID "network-graph" is required by E2E tests #}
+<div id="network-graph" class="graph-container"></div>
+
+{# AC7: Fallback for users with JavaScript disabled #}
+<noscript>
+    <div class="alert alert-warning mt-3" role="alert">
+        The network graph requires JavaScript. Please enable JavaScript in your browser to view the visualization.
+    </div>
+</noscript>
+{% endblock %}
+
+{% block extra_js %}
+{# vis-network must load before graph-viewer.js #}
+<script src="{% static 'js/vendor/vis-network.min.js' %}"></script>
+<script src="{% static 'js/graph-viewer.js' %}"></script>
+{% endblock %}
