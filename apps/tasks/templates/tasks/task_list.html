@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load task_tags %}
 
-{% block title %}My Tasks - Todo App{% endblock %}
+{% block title %}My Tasks{% if active_tags %} [{% for tag in active_tags %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}]{% endif %} - Todo App{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -27,6 +27,37 @@
         Switch to {% if tag_mode == 'and' %}OR{% else %}AND{% endif %}
     </a>
     <a href="{{ clear_tags_url }}" class="btn btn-sm btn-outline-secondary py-0">Clear all</a>
+</div>
+{% endif %}
+
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        {% if active_tags %}
+        <li class="breadcrumb-item"><a href="{% url 'task-list' %}">My Tasks</a></li>
+        {% for tag in active_tags %}
+        <li class="breadcrumb-item {% if forloop.last %}active{% endif %}">
+            <a href="{{ tag_remove_urls|get_item:tag.pk }}"
+               class="badge text-decoration-none"
+               style="background-color: {{ tag.color }}; color: {{ tag.color|badge_text_color }};"
+               aria-label="Remove {{ tag.name }} filter">{{ tag.name }}</a>
+        </li>
+        {% endfor %}
+        {% else %}
+        <li class="breadcrumb-item active" aria-current="page">My Tasks</li>
+        {% endif %}
+    </ol>
+</nav>
+
+{% if popular_tags and not active_tags %}
+<div class="mb-2">
+    <span class="text-muted small me-1">Quick filter:</span>
+    {% for tag in popular_tags %}
+    <a href="{{ tag_add_urls|get_item:tag.pk }}"
+       class="badge text-decoration-none me-1"
+       style="background-color: {{ tag.color }}; color: {{ tag.color|badge_text_color }};"
+       title="{{ tag.num_tasks }} task{{ tag.num_tasks|pluralize }}">{{ tag.name }}</a>
+    {% endfor %}
 </div>
 {% endif %}
 

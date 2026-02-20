@@ -124,6 +124,13 @@ class TaskListView(LoginRequiredMixin, ListView):
         page_params = self.request.GET.copy()
         page_params.pop("page", None)
 
+        popular_tags = (
+            Tag.objects.filter(user=self.request.user)
+            .annotate(num_tasks=Count("tasks"))
+            .filter(num_tasks__gt=0)
+            .order_by("-num_tasks")[:5]
+        )
+
         context.update(
             {
                 "active_tag_ids": tag_ids,
@@ -136,6 +143,7 @@ class TaskListView(LoginRequiredMixin, ListView):
                 "task_total": self.get_queryset().count(),
                 "user_tags": all_user_tags,
                 "page_base_params": page_params.urlencode(),
+                "popular_tags": popular_tags,
             }
         )
         return context

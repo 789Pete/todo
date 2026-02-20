@@ -11,7 +11,9 @@
                 </li>
                 {% if user.is_authenticated %}
                 <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'task-list' %}active{% endif %}" href="{% url 'task-list' %}">My Tasks</a>
+                    <a class="nav-link {% if request.resolver_match.url_name == 'task-list' %}active{% endif %}" href="{% url 'task-list' %}">
+                        My Tasks{% if request.resolver_match.url_name == 'task-list' and "tags" in request.GET %}<span class="badge bg-warning text-dark ms-1" style="font-size: 0.65em;" title="Tag filters active">●</span>{% endif %}
+                    </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if 'tag-' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'tag-list' %}">My Tags</a>

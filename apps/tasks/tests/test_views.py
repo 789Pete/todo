@@ -1796,3 +1796,82 @@ class TestTagMergeView:
         response = c.post(self._url(source), {"target_tag": str(other_target.pk)})
 
         assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestTaskListViewPopularTags:
+    def test_popular_tags_in_context(self, client):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        task = TaskFactory(user=user)
+        task.tags.add(tag)
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        assert response.status_code == 200
+        assert "popular_tags" in response.context
+
+    def test_popular_tags_ordered_by_task_count_desc(self, client):
+        user = UserFactory()
+        tag_high = TagFactory(user=user)
+        tag_low = TagFactory(user=user)
+        TaskFactory.create_batch(3, user=user, tags=[tag_high])
+        task = TaskFactory(user=user)
+        task.tags.add(tag_low)
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        popular = list(response.context["popular_tags"])
+        assert popular[0] == tag_high
+        assert popular[1] == tag_low
+
+    def test_popular_tags_limited_to_5(self, client):
+        user = UserFactory()
+        for _ in range(7):
+            tag = TagFactory(user=user)
+            task = TaskFactory(user=user)
+            task.tags.add(tag)
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        assert len(list(response.context["popular_tags"])) <= 5
+
+    def test_popular_tags_excludes_unused_tags(self, client):
+        user = UserFactory()
+        TagFactory(user=user)  # unused tag
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        assert len(list(response.context["popular_tags"])) == 0
+
+    def test_popular_tags_excludes_other_users_tags(self, client):
+        user = UserFactory()
+        other_tag = TagFactory()  # different user
+        other_task = TaskFactory(user=other_tag.user)
+        other_task.tags.add(other_tag)
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        assert other_tag not in list(response.context["popular_tags"])
+
+
+@pytest.mark.django_db
+class TestTaskListViewBreadcrumb:
+    def test_no_active_tags_when_no_filter(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        assert len(list(response.context["active_tags"])) == 0
+
+    def test_active_tags_in_context_when_filtered(self, client):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        client.force_login(user)
+        url = reverse("task-list") + f"?tags={tag.pk}"
+        response = client.get(url)
+        assert tag in response.context["active_tags"]
+
+    def test_tag_remove_url_exists_for_active_tag(self, client):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        client.force_login(user)
+        url = reverse("task-list") + f"?tags={tag.pk}"
+        response = client.get(url)
+        remove_urls = response.context["tag_remove_urls"]
+        assert str(tag.pk) in remove_urls
+        assert isinstance(remove_urls[str(tag.pk)], str)
