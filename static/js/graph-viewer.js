@@ -1,44 +1,44 @@
 // static/js/graph-viewer.js
-// Story 3.1: Uses sample data. Story 3.2 will replace with /api/graph/data/ fetch.
+// Story 3.2: Fetches real graph data from /api/graph/data/
 
 document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('network-graph');
-    if (!container) return;  // Safety: container not present on this page
+    if (!container) return;
 
+    // Show loading state while fetch is in progress
+    container.innerHTML =
+        '<div class="d-flex justify-content-center align-items-center h-100">' +
+        '<div class="spinner-border text-secondary" role="status">' +
+        '<span class="visually-hidden">Loading graph...</span></div></div>';
+
+    fetch('/api/graph/data/', {
+        credentials: 'same-origin',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+    })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error('API returned ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function (graphData) {
+            container.innerHTML = '';
+            initializeGraph(container, graphData);
+        })
+        .catch(function (e) {
+            console.error('Graph data fetch failed:', e);
+            container.innerHTML =
+                '<div class="alert alert-danger m-3">' +
+                'Failed to load the graph visualization. Please refresh the page.' +
+                '</div>';
+        });
+});
+
+function initializeGraph(container, graphData) {
     try {
-        // Sample data matching Story 3.2 API format
-        const sampleNodes = [
-            {
-                id: 'task-1', label: 'Complete project\nproposal', group: 'todo', shape: 'box',
-                color: { background: '#e3f2fd', border: '#2196f3' }, title: 'Priority: high'
-            },
-            {
-                id: 'task-2', label: 'Review security\naudit', group: 'in_progress', shape: 'box',
-                color: { background: '#fff8e1', border: '#ff9800' }, title: 'Priority: medium'
-            },
-            {
-                id: 'task-3', label: 'Write tests', group: 'done', shape: 'box',
-                color: { background: '#e8f5e9', border: '#4caf50' }, title: 'Priority: low'
-            },
-            {
-                id: 'tag-1', label: 'Work', group: 'tag', shape: 'ellipse',
-                color: { background: '#FF6B6B', border: '#d32f2f' }, title: '2 tasks'
-            },
-            {
-                id: 'tag-2', label: 'Personal', group: 'tag', shape: 'ellipse',
-                color: { background: '#4ECDC4', border: '#00897b' }, title: '1 task'
-            },
-        ];
-
-        const sampleEdges = [
-            { from: 'task-1', to: 'tag-1', color: '#999999', width: 1 },
-            { from: 'task-2', to: 'tag-1', color: '#999999', width: 1 },
-            { from: 'task-3', to: 'tag-2', color: '#999999', width: 1 },
-        ];
-
         const data = {
-            nodes: new vis.DataSet(sampleNodes),
-            edges: new vis.DataSet(sampleEdges),
+            nodes: new vis.DataSet(graphData.nodes),
+            edges: new vis.DataSet(graphData.edges),
         };
 
         const options = {
@@ -52,7 +52,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 stabilization: { iterations: 100, fit: true },
             },
             interaction: {
-                // AC5: touch and mouse events — native to vis-network, enabled by default
                 zoomView: true,
                 dragView: true,
                 dragNodes: true,
@@ -64,13 +63,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const network = new vis.Network(container, data, options);
 
-        // AC4: Responsive canvas on window resize
+        // AC5: Cluster task nodes by status when graph is dense (50+ nodes)
+        var nodeCount = graphData.nodes.length;
+        if (nodeCount > 50) {
+            var groupConfig = {
+                todo:        {label: 'To Do tasks',      color: {background: '#e3f2fd', border: '#2196f3'}},
+                in_progress: {label: 'In Progress tasks', color: {background: '#fff8e1', border: '#ff9800'}},
+                done:        {label: 'Done tasks',        color: {background: '#e8f5e9', border: '#4caf50'}},
+            };
+            Object.keys(groupConfig).forEach(function (group) {
+                var cfg = groupConfig[group];
+                network.cluster({
+                    joinCondition: function (nodeOptions) {
+                        return nodeOptions.group === group;
+                    },
+                    clusterNodeProperties: {
+                        id: 'cluster-' + group,
+                        label: cfg.label,
+                        shape: 'box',
+                        color: cfg.color,
+                        borderWidth: 2,
+                        font: {size: 14},
+                    },
+                });
+            });
+        }
+
         window.addEventListener('resize', function () {
             network.setSize('100%', container.offsetHeight + 'px');
             network.fit();
         });
 
-        // AC6: Performance test helper — call window.testGraphPerformance() in console
+        // Performance test helper — call window.testGraphPerformance() in console
         window.testGraphPerformance = function () {
             const perfNodes = [];
             const perfEdges = [];
@@ -91,16 +115,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     'Performance: ' + perfNodes.length + ' nodes, ' +
                     perfEdges.length + ' edges stabilized in ' + elapsed.toFixed(0) + 'ms'
                 );
-                network.setData(data);  // Restore sample data
+                network.setData(data);
             });
         };
-
     } catch (e) {
-        // AC7: Error fallback when vis-network fails
         console.error('Graph initialization failed:', e);
         container.innerHTML =
             '<div class="alert alert-danger m-3">' +
             'Failed to load the graph visualization. Please refresh the page.' +
             '</div>';
     }
-});
+}

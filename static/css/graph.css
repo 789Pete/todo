@@ -13,3 +13,50 @@
         height: 400px;
     }
 }
+
+/* Graph legend overlay */
+.graph-legend {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    z-index: 10;
+    pointer-events: none;
+    max-width: 160px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.legend-node {
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.legend-box {
+    width: 18px;
+    height: 14px;
+    border: 2px solid;
+    border-radius: 2px;
+}
+
+.legend-ellipse {
+    width: 18px;
+    height: 12px;
+    background: #4ecdc4;
+    border: 1px solid #3aa89e;
+    border-radius: 50%;
+}
+
+.legend-text-red {
+    color: #cc0000;
+    font-weight: 500;
+}

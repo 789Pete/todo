@@ -13,6 +13,52 @@
 {# Graph container — ID "network-graph" is required by E2E tests #}
 <div id="network-graph" class="graph-container"></div>
 
+{# AC7: Graph legend — positioned over the bottom-left corner of the graph #}
+<div class="graph-legend" id="graph-legend" aria-label="Graph legend">
+    <strong class="d-block mb-2">Legend</strong>
+    <div class="legend-section">
+        <small class="text-muted d-block mb-1">Task Status</small>
+        <div class="legend-item">
+            <span class="legend-node legend-box" style="background:#e3f2fd;border-color:#2196f3;"></span>
+            To Do
+        </div>
+        <div class="legend-item">
+            <span class="legend-node legend-box" style="background:#fff8e1;border-color:#ff9800;"></span>
+            In Progress
+        </div>
+        <div class="legend-item">
+            <span class="legend-node legend-box" style="background:#e8f5e9;border-color:#4caf50;"></span>
+            Done
+        </div>
+    </div>
+    <div class="legend-section mt-2">
+        <small class="text-muted d-block mb-1">Priority (border width)</small>
+        <div class="legend-item">
+            <span class="legend-node legend-box" style="background:#f5f5f5;border-color:#888;border-width:3px;"></span>
+            High
+        </div>
+        <div class="legend-item">
+            <span class="legend-node legend-box" style="background:#f5f5f5;border-color:#888;border-width:2px;"></span>
+            Medium
+        </div>
+        <div class="legend-item">
+            <span class="legend-node legend-box" style="background:#f5f5f5;border-color:#888;border-width:1px;"></span>
+            Low
+        </div>
+    </div>
+    <div class="legend-section mt-2">
+        <small class="text-muted d-block mb-1">Other</small>
+        <div class="legend-item">
+            <span class="legend-node legend-ellipse"></span>
+            Tag (size = usage)
+        </div>
+        <div class="legend-item">
+            <span class="legend-text-red">Red label</span>
+            Overdue task
+        </div>
+    </div>
+</div>
+
 {# AC7: Fallback for users with JavaScript disabled #}
 <noscript>
     <div class="alert alert-warning mt-3" role="alert">
