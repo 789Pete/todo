@@ -5,6 +5,8 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.urls import include, path
 
+from apps.visualization.api_views import GraphDataView
+
 
 def home(request):
     return render(request, "home.html")
@@ -26,6 +28,7 @@ urlpatterns = [
     path("accounts/", include("apps.accounts.urls")),
     path("tasks/", include("apps.tasks.urls")),
     path("visualization/", include("apps.visualization.urls")),
+    path("api/graph/data/", GraphDataView.as_view(), name="api-graph-data"),
 ]
 
 if settings.DEBUG:
