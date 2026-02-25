@@ -128,6 +128,16 @@ class TestTaskDetailView:
 
         assert response.status_code == 404
 
+    def test_task_detail_with_from_graph_param(self, client):
+        user = UserFactory()
+        task = TaskFactory(user=user)
+        client.force_login(user)
+        url = reverse("task-detail", kwargs={"pk": task.pk}) + "?from_graph=1"
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"/visualization/" in response.content  # graph-view URL rendered
+        assert b"Back to Graph" in response.content
+
 
 @pytest.mark.django_db
 class TestTaskCreateView:

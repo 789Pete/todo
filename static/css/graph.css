@@ -60,3 +60,28 @@
     color: #cc0000;
     font-weight: 500;
 }
+
+/* AC4: Right-click context menu */
+.graph-context-menu {
+    position: fixed;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 4px 0;
+    display: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    min-width: 150px;
+}
+
+.graph-context-menu a {
+    display: block;
+    padding: 6px 16px;
+    color: #333;
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.graph-context-menu a:hover {
+    background: #f5f5f5;
+}

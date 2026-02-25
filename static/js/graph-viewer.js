@@ -11,7 +11,16 @@ document.addEventListener('DOMContentLoaded', function () {
         '<div class="spinner-border text-secondary" role="status">' +
         '<span class="visually-hidden">Loading graph...</span></div></div>';
 
-    fetch('/api/graph/data/', {
+    var graphParams = new URLSearchParams();
+    var pageParams = new URLSearchParams(window.location.search);
+    ['filter_tag', 'filter_status'].forEach(function (key) {
+        var val = pageParams.get(key);
+        if (val) graphParams.set(key, val);
+    });
+    var apiUrl = '/api/graph/data/';
+    if (graphParams.toString()) { apiUrl += '?' + graphParams.toString(); }
+
+    fetch(apiUrl, {
         credentials: 'same-origin',
         headers: { 'X-CSRFToken': getCookie('csrftoken') },
     })
@@ -62,6 +71,58 @@ function initializeGraph(container, graphData) {
         };
 
         const network = new vis.Network(container, data, options);
+
+        // AC1, AC2: Single-click navigation for task and tag nodes
+        // AC3: Double-click relationship highlighting
+        // clickTimeout prevents single-click navigation from firing during a double-click
+        var clickTimeout = null;
+
+        network.on('click', function (params) {
+            if (params.nodes.length === 0) return;
+            var nodeId = params.nodes[0];
+            clickTimeout = setTimeout(function () {
+                if (nodeId.indexOf('task-') === 0) {
+                    window.location.href = '/tasks/' + nodeId.slice(5) + '/?from_graph=1';
+                } else if (nodeId.indexOf('tag-') === 0) {
+                    window.location.href = '/tasks/?tags=' + nodeId.slice(4);
+                }
+            }, 250);
+        });
+
+        network.on('doubleClick', function (params) {
+            if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
+            if (params.nodes.length === 0) return;
+            var nodeId = params.nodes[0];
+            var connectedNodes = network.getConnectedNodes(nodeId);
+            var connectedEdges = network.getConnectedEdges(nodeId);
+            network.selectNodes(connectedNodes);
+            network.selectEdges(connectedEdges);
+        });
+
+        // AC4: Right-click context menu for task nodes
+        var contextMenu = document.getElementById('graph-context-menu');
+        var ctxView = document.getElementById('ctx-view');
+        var ctxEdit = document.getElementById('ctx-edit');
+        var ctxTags = document.getElementById('ctx-tags');
+        var ctxDelete = document.getElementById('ctx-delete');
+
+        network.on('oncontext', function (params) {
+            params.event.preventDefault();
+            if (params.nodes.length === 0) return;
+            var nodeId = params.nodes[0];
+            if (nodeId.indexOf('task-') !== 0) return;
+            var uuid = nodeId.slice(5);
+            ctxView.href = '/tasks/' + uuid + '/?from_graph=1';
+            ctxEdit.href = '/tasks/' + uuid + '/edit/';
+            ctxTags.href = '/tasks/' + uuid + '/edit/';
+            ctxDelete.href = '/tasks/' + uuid + '/delete/';
+            contextMenu.style.left = params.event.clientX + 'px';
+            contextMenu.style.top = params.event.clientY + 'px';
+            contextMenu.style.display = 'block';
+            document.addEventListener('click', function () {
+                contextMenu.style.display = 'none';
+            }, { once: true });
+        });
 
         // AC5: Cluster task nodes by status when graph is dense (50+ nodes)
         var nodeCount = graphData.nodes.length;

@@ -32,3 +32,10 @@ class TestGraphView:
         url = reverse("graph-view")
         response = client.get(url)
         assert b'id="network-graph"' in response.content
+
+    def test_graph_view_accepts_filter_params(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        url = reverse("graph-view") + "?filter_status=todo&filter_tag=Work"
+        response = client.get(url)
+        assert response.status_code == 200  # View renders; JS reads params client-side

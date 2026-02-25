@@ -4,9 +4,21 @@
 {% block title %}{{ task.title }} - Todo App{% endblock %}
 
 {% block content %}
+{% if request.GET.from_graph %}
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'graph-view' %}">Graph</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ task.title|truncatechars:40 }}</li>
+    </ol>
+</nav>
+<div class="mb-3">
+    <a href="{% url 'graph-view' %}" class="text-decoration-none">&larr; Back to Graph</a>
+</div>
+{% else %}
 <div class="mb-3">
     <a href="{% url 'task-list' %}" class="text-decoration-none">&larr; Back to Tasks</a>
 </div>
+{% endif %}
 
 <div class="card">
     <div class="card-body">
