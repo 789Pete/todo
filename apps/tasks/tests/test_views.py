@@ -427,6 +427,13 @@ class TestTaskToggleStatusView:
         assert response.status_code == 302
         assert response.url == reverse("task-list")
 
+    def test_task_list_contains_graph_view_link(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        response = client.get(reverse("task-list"))
+        assert response.status_code == 200
+        assert b"Graph View" in response.content
+
 
 @pytest.mark.django_db
 class TestTaskListViewFilterSort:

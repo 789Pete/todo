@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Split View - Todo App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/graph.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 page-fade-in">
+    <h1 class="h3">Split View</h1>
+    <div class="btn-group btn-group-sm">
+        <a href="{% url 'task-list' %}" class="btn btn-outline-secondary">List Only</a>
+        <a href="{% url 'graph-view' %}" class="btn btn-outline-secondary">Graph Only</a>
+    </div>
+</div>
+
+<div class="split-container">
+    <div class="position-relative">
+        <div id="network-graph" class="graph-container" style="height:100%;"></div>
+
+        {# Graph legend — copied from graph.html (required by graph-viewer.js layout) #}
+        <div class="graph-legend" id="graph-legend" aria-label="Graph legend">
+            <strong class="d-block mb-2">Legend</strong>
+            <div class="legend-section">
+                <small class="text-muted d-block mb-1">Task Status</small>
+                <div class="legend-item">
+                    <span class="legend-node legend-box" style="background:#e3f2fd;border-color:#2196f3;"></span>
+                    To Do
+                </div>
+                <div class="legend-item">
+                    <span class="legend-node legend-box" style="background:#fff8e1;border-color:#ff9800;"></span>
+                    In Progress
+                </div>
+                <div class="legend-item">
+                    <span class="legend-node legend-box" style="background:#e8f5e9;border-color:#4caf50;"></span>
+                    Done
+                </div>
+            </div>
+            <div class="legend-section mt-2">
+                <small class="text-muted d-block mb-1">Priority (border width)</small>
+                <div class="legend-item">
+                    <span class="legend-node legend-box" style="background:#f5f5f5;border-color:#888;border-width:3px;"></span>
+                    High
+                </div>
+                <div class="legend-item">
+                    <span class="legend-node legend-box" style="background:#f5f5f5;border-color:#888;border-width:2px;"></span>
+                    Medium
+                </div>
+                <div class="legend-item">
+                    <span class="legend-node legend-box" style="background:#f5f5f5;border-color:#888;border-width:1px;"></span>
+                    Low
+                </div>
+            </div>
+            <div class="legend-section mt-2">
+                <small class="text-muted d-block mb-1">Other</small>
+                <div class="legend-item">
+                    <span class="legend-node legend-ellipse"></span>
+                    Tag (size = usage)
+                </div>
+                <div class="legend-item">
+                    <span class="legend-text-red">Red label</span>
+                    Overdue task
+                </div>
+            </div>
+        </div>
+
+        {# Context menu — copied from graph.html (graph-viewer.js calls getElementById('graph-context-menu') unconditionally) #}
+        <div id="graph-context-menu" class="graph-context-menu" role="menu" aria-label="Task actions">
+            <a id="ctx-view" href="#" role="menuitem">View Details</a>
+            <a id="ctx-edit" href="#" role="menuitem">Edit Task</a>
+            <a id="ctx-tags" href="#" role="menuitem">Add Tags</a>
+            <a id="ctx-delete" href="#" class="text-danger" role="menuitem">Delete Task</a>
+        </div>
+    </div>
+
+    <iframe class="split-frame"
+            src="{% url 'task-list' %}{% if graph_params.filter_status %}?status={{ graph_params.filter_status }}{% endif %}"
+            title="Task List"></iframe>
+</div>
+
+<noscript>
+    <div class="alert alert-warning mt-3" role="alert">
+        The network graph requires JavaScript. Please enable JavaScript in your browser to view the visualization.
+    </div>
+</noscript>
+{% endblock %}
+
+{% block extra_js %}
+{# vis-network must load before graph-viewer.js #}
+<script src="{% static 'js/vendor/vis-network.min.js' %}"></script>
+<script src="{% static 'js/graph-viewer.js' %}"></script>
+{% endblock %}

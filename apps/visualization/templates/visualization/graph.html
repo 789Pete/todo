@@ -8,7 +8,13 @@
 {% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">Task Network Graph</h1>
+<div class="d-flex justify-content-between align-items-center mb-3 page-fade-in">
+    <h1 class="h3">Task Network Graph</h1>
+    <div class="btn-group btn-group-sm">
+        <a href="{% url 'task-list' %}{% if graph_params.filter_status %}?status={{ graph_params.filter_status }}{% endif %}" class="btn btn-outline-secondary">List View</a>
+        <a href="{% url 'split-view' %}" class="btn btn-outline-secondary">Split View</a>
+    </div>
+</div>
 
 {# Graph container — ID "network-graph" is required by E2E tests #}
 <div id="network-graph" class="graph-container"></div>

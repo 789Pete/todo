@@ -39,3 +39,23 @@ class TestGraphView:
         url = reverse("graph-view") + "?filter_status=todo&filter_tag=Work"
         response = client.get(url)
         assert response.status_code == 200  # View renders; JS reads params client-side
+
+
+@pytest.mark.django_db
+class TestSplitView:
+    def test_split_view_requires_login(self, client):
+        response = client.get(reverse("split-view"))
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+    def test_split_view_renders_for_authenticated_user(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        response = client.get(reverse("split-view"))
+        assert response.status_code == 200
+
+    def test_split_view_uses_correct_template(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        response = client.get(reverse("split-view"))
+        assert "visualization/split.html" in [t.name for t in response.templates]

@@ -15,8 +15,9 @@
     <a href="{% url 'graph-view' %}" class="text-decoration-none">&larr; Back to Graph</a>
 </div>
 {% else %}
-<div class="mb-3">
+<div class="mb-3 d-flex align-items-center gap-3">
     <a href="{% url 'task-list' %}" class="text-decoration-none">&larr; Back to Tasks</a>
+    <a href="{% url 'graph-view' %}" class="btn btn-outline-secondary btn-sm">View in Graph</a>
 </div>
 {% endif %}
 
