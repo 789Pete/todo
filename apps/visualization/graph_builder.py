@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.tasks.models import Tag, Task
@@ -29,10 +30,41 @@ PRIORITY_EDGE_COLOR = {
     "low": "#cccccc",
 }
 
+MAX_TASKS_PER_GRAPH = 500  # cap API response size
+
 # Tag node sizing based on usage frequency
 BASE_TAG_SIZE = 15  # minimum ellipse size (pixels)
 TAG_SIZE_PER_TASK = 3  # extra pixels per task using this tag
 MAX_TAG_SIZE = 50  # cap so large tags don't dominate
+
+
+def _build_tag_nodes(seen_tag_ids, user):
+    """Build tag node list from a set of seen tag IDs, with annotated task counts."""
+    if not seen_tag_ids:
+        return []
+    tags = Tag.objects.filter(id__in=seen_tag_ids).annotate(
+        user_task_count=Count("tasks", filter=Q(tasks__user=user), distinct=True)
+    )
+    nodes = []
+    for tag in tags:
+        task_count = tag.user_task_count
+        nodes.append(
+            {
+                "id": f"tag-{tag.id}",
+                "label": tag.name,
+                "group": "tag",
+                "shape": "ellipse",
+                "color": {
+                    "background": tag.color,
+                    "border": _darken_hex(tag.color),
+                },
+                "title": f"{task_count} task{'s' if task_count != 1 else ''}",
+                "size": min(
+                    BASE_TAG_SIZE + task_count * TAG_SIZE_PER_TASK, MAX_TAG_SIZE
+                ),
+            }
+        )
+    return nodes
 
 
 def build_graph_data(user, filter_tag=None, filter_status=None):
@@ -48,13 +80,18 @@ def build_graph_data(user, filter_tag=None, filter_status=None):
     if filter_tag:
         tasks = tasks.filter(tags__name__iexact=filter_tag).distinct()
 
+    task_list = list(tasks[: MAX_TASKS_PER_GRAPH + 1])
+    truncated = len(task_list) > MAX_TASKS_PER_GRAPH
+    if truncated:
+        task_list = task_list[:MAX_TASKS_PER_GRAPH]
+
     seen_tag_ids = set()
     task_nodes = []
     edges = []
 
     today = timezone.now().date()
 
-    for task in tasks:
+    for task in task_list:
         task_id = f"task-{task.id}"
         status_color = TASK_STATUS_COLORS.get(task.status, TASK_STATUS_COLORS["todo"])
 
@@ -98,27 +135,7 @@ def build_graph_data(user, filter_tag=None, filter_status=None):
             )
             seen_tag_ids.add(tag.id)
 
-    tag_nodes = []
-    if seen_tag_ids:
-        tags = Tag.objects.filter(id__in=seen_tag_ids).prefetch_related("tasks")
-        for tag in tags:
-            task_count = tag.tasks.filter(user=user).count()
-            tag_nodes.append(
-                {
-                    "id": f"tag-{tag.id}",
-                    "label": tag.name,
-                    "group": "tag",
-                    "shape": "ellipse",
-                    "color": {
-                        "background": tag.color,
-                        "border": _darken_hex(tag.color),
-                    },
-                    "title": f"{task_count} task{'s' if task_count != 1 else ''}",
-                    "size": min(
-                        BASE_TAG_SIZE + task_count * TAG_SIZE_PER_TASK, MAX_TAG_SIZE
-                    ),
-                }
-            )
+    tag_nodes = _build_tag_nodes(seen_tag_ids, user)
 
     total_tasks = Task.objects.filter(user=user).count()
     total_tags = Tag.objects.filter(user=user).count()
@@ -131,6 +148,7 @@ def build_graph_data(user, filter_tag=None, filter_status=None):
             "total_tags": total_tags,
             "filtered_tasks": len(task_nodes),
             "filtered_tags": len(tag_nodes),
+            "truncated": truncated,
         },
     }
 

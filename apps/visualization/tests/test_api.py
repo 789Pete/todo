@@ -53,6 +53,7 @@ class TestGraphDataAPI:
         assert "total_tags" in stats
         assert "filtered_tasks" in stats
         assert "filtered_tags" in stats
+        assert "truncated" in stats
 
     def test_returns_only_user_data(self, api_client):
         user1 = UserFactory()

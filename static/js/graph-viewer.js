@@ -2,6 +2,14 @@
 // Story 3.2: Fetches real graph data from /api/graph/data/
 
 document.addEventListener('DOMContentLoaded', function () {
+    if (typeof fetch === 'undefined' || typeof URLSearchParams === 'undefined') {
+        var fb = document.getElementById('network-graph');
+        if (fb) {
+            fb.innerHTML = '<div class="alert alert-warning m-3">Your browser does not support the graph visualization. Please upgrade to a modern browser (Chrome 90+, Firefox 88+, Safari 14+).</div>';
+        }
+        return;
+    }
+
     const container = document.getElementById('network-graph');
     if (!container) return;
 
@@ -17,6 +25,19 @@ document.addEventListener('DOMContentLoaded', function () {
         var val = pageParams.get(key);
         if (val) graphParams.set(key, val);
     });
+    // AC7: Persist filter state across sessions
+    if (graphParams.toString()) {
+        localStorage.setItem('graph_filters', graphParams.toString());
+    } else {
+        var savedFilters = localStorage.getItem('graph_filters');
+        if (savedFilters) {
+            var restoredParams = new URLSearchParams(savedFilters);
+            ['filter_tag', 'filter_status'].forEach(function (key) {
+                var val = restoredParams.get(key);
+                if (val) graphParams.set(key, val);
+            });
+        }
+    }
     var apiUrl = '/api/graph/data/';
     if (graphParams.toString()) { apiUrl += '?' + graphParams.toString(); }
 
@@ -33,6 +54,14 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function (graphData) {
             container.innerHTML = '';
             initializeGraph(container, graphData);
+            if (graphData.stats && graphData.stats.truncated) {
+                container.insertAdjacentHTML(
+                    'afterend',
+                    '<div class="alert alert-warning alert-sm mt-2 py-2 mb-0" role="alert">' +
+                    'Showing the first 500 tasks. Apply a status or tag filter to see more detail.' +
+                    '</div>'
+                );
+            }
         })
         .catch(function (e) {
             console.error('Graph data fetch failed:', e);
@@ -58,7 +87,10 @@ function initializeGraph(container, graphData) {
             },
             physics: {
                 enabled: true,
-                stabilization: { iterations: 100, fit: true },
+                solver: 'barnesHut',
+                barnesHut: { gravitationalConstant: -3000, springLength: 120, damping: 0.3 },
+                stabilization: { iterations: 150, fit: true, updateInterval: 25 },
+                adaptiveTimestep: true,
             },
             interaction: {
                 zoomView: true,
@@ -71,6 +103,10 @@ function initializeGraph(container, graphData) {
         };
 
         const network = new vis.Network(container, data, options);
+
+        network.once('stabilized', function () {
+            network.setOptions({ physics: false });
+        });
 
         // AC1, AC2: Single-click navigation for task and tag nodes
         // AC3: Double-click relationship highlighting
@@ -153,6 +189,10 @@ function initializeGraph(container, graphData) {
         window.addEventListener('resize', function () {
             network.setSize('100%', container.offsetHeight + 'px');
             network.fit();
+        });
+
+        window.addEventListener('beforeunload', function () {
+            network.destroy();
         });
 
         // Performance test helper — call window.testGraphPerformance() in console

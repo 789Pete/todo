@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -288,6 +289,36 @@ class TestBuildGraphData:
         TaskFactory(user=user, priority="low", tags=[tag])
         result = build_graph_data(user)
         assert result["edges"][0]["color"] == "#cccccc"
+
+
+@pytest.mark.django_db
+class TestGraphBuilderQueryCount:
+    def test_build_graph_data_avoids_n_plus_one_queries(
+        self, django_assert_num_queries
+    ):
+        user = UserFactory()
+        tags = TagFactory.create_batch(3, user=user)
+        for tag in tags:
+            task = TaskFactory(user=user)
+            task.tags.add(tag)
+
+        with django_assert_num_queries(5):
+            build_graph_data(user)
+
+    def test_build_graph_data_returns_truncated_false_for_small_dataset(self):
+        user = UserFactory()
+        TaskFactory.create_batch(2, user=user)
+        result = build_graph_data(user)
+        assert result["stats"]["truncated"] is False
+
+    def test_build_graph_data_truncates_at_max_tasks(self):
+        user = UserFactory()
+        TaskFactory.create_batch(3, user=user)
+        with patch("apps.visualization.graph_builder.MAX_TASKS_PER_GRAPH", 2):
+            result = build_graph_data(user)
+        assert result["stats"]["truncated"] is True
+        task_nodes = [n for n in result["nodes"] if n["id"].startswith("task-")]
+        assert len(task_nodes) == 2
 
 
 class TestDarkenHex:
