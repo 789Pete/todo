@@ -91,6 +91,9 @@ class TaskListView(LoginRequiredMixin, ListView):
             else:
                 for tag_id in tag_ids:
                     qs = qs.filter(tags__pk=tag_id)
+        q = self.request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(title__icontains=q)
         return qs
 
     def get_context_data(self, **kwargs):
@@ -133,6 +136,7 @@ class TaskListView(LoginRequiredMixin, ListView):
 
         context.update(
             {
+                "current_search": self.request.GET.get("q", ""),
                 "active_tag_ids": tag_ids,
                 "active_tags": active_tags,
                 "tag_mode": tag_mode,

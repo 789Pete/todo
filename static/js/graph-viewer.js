@@ -98,6 +98,11 @@ function initializeGraph(container, graphData) {
                 dragNodes: true,
                 tooltipDelay: 200,
                 multiselect: false,
+                keyboard: {
+                    enabled: true,
+                    bindToWindow: false,
+                    speed: { x: 10, y: 10, zoom: 0.02 },
+                },
             },
             layout: { improvedLayout: true },
         };
@@ -158,6 +163,21 @@ function initializeGraph(container, graphData) {
             document.addEventListener('click', function () {
                 contextMenu.style.display = 'none';
             }, { once: true });
+        });
+
+        // AC5 (keyboard): Enter key opens the selected node
+        container.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                var selected = network.getSelectedNodes();
+                if (selected.length > 0) {
+                    var nodeId = selected[0];
+                    if (nodeId.indexOf('task-') === 0) {
+                        window.location.href = '/tasks/' + nodeId.slice(5) + '/?from_graph=1';
+                    } else if (nodeId.indexOf('tag-') === 0) {
+                        window.location.href = '/tasks/?tags=' + nodeId.slice(4);
+                    }
+                }
+            }
         });
 
         // AC5: Cluster task nodes by status when graph is dense (50+ nodes)

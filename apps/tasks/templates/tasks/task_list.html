@@ -53,7 +53,7 @@
 </nav>
 
 {% if popular_tags and not active_tags %}
-<div class="mb-2">
+<div class="mb-2" id="quick-tag-filter">
     <span class="text-muted small me-1">Quick filter:</span>
     {% for tag in popular_tags %}
     <a href="{{ tag_add_urls|get_item:tag.pk }}"
@@ -63,6 +63,12 @@
     {% endfor %}
 </div>
 {% endif %}
+
+<div class="mb-2">
+    <input type="text" id="task-search" class="form-control form-control-sm"
+           placeholder="Search tasks… (Ctrl/⌘+F)" value="{{ current_search }}"
+           aria-label="Search tasks by title">
+</div>
 
 <div class="row mb-3">
     <div class="col-md-8">
@@ -97,9 +103,9 @@
 </div>
 
 {% if tasks %}
-<div class="list-group">
+<div class="list-group" id="task-list-container">
     {% for task in tasks %}
-    <div class="list-group-item {% if task.status == 'done' %}opacity-50{% endif %}{% if task.is_overdue %} border-start border-danger border-3{% endif %}">
+    <div class="list-group-item {% if task.status == 'done' %}opacity-50{% endif %}{% if task.is_overdue %} border-start border-danger border-3{% endif %}" data-task-pk="{{ task.pk }}">
         <div class="d-flex flex-column flex-sm-row w-100 justify-content-sm-between align-items-sm-start gap-1">
             <div class="d-flex align-items-start">
                 <form method="post" action="{% url 'task-toggle-status' pk=task.pk %}" class="me-2 mt-1">

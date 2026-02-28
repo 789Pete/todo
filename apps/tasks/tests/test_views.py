@@ -1892,3 +1892,47 @@ class TestTaskListViewBreadcrumb:
         remove_urls = response.context["tag_remove_urls"]
         assert str(tag.pk) in remove_urls
         assert isinstance(remove_urls[str(tag.pk)], str)
+
+
+@pytest.mark.django_db
+class TestTaskListSearch:
+    def test_search_filters_by_title(self, client):
+        user = UserFactory()
+        TaskFactory(user=user, title="Write documentation")
+        TaskFactory(user=user, title="Fix bug in login")
+        TaskFactory(user=user, title="Write unit tests")
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?q=write")
+        tasks = list(response.context["tasks"])
+        assert len(tasks) == 2
+        assert all("write" in t.title.lower() for t in tasks)
+
+    def test_search_is_case_insensitive(self, client):
+        user = UserFactory()
+        TaskFactory(user=user, title="Django Tutorial")
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?q=django")
+        assert len(list(response.context["tasks"])) == 1
+
+    def test_search_combines_with_status_filter(self, client):
+        user = UserFactory()
+        TaskFactory(user=user, title="Write docs", status="todo")
+        TaskFactory(user=user, title="Write tests", status="done")
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?q=write&status=done")
+        tasks = list(response.context["tasks"])
+        assert len(tasks) == 1
+        assert tasks[0].title == "Write tests"
+
+    def test_empty_search_returns_all_tasks(self, client):
+        user = UserFactory()
+        TaskFactory.create_batch(3, user=user)
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?q=")
+        assert len(list(response.context["tasks"])) == 3
+
+    def test_current_search_in_context(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        response = client.get(reverse("task-list") + "?q=myquery")
+        assert response.context["current_search"] == "myquery"
