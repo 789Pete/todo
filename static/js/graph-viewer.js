@@ -89,10 +89,54 @@ window.addEventListener('pageshow', function (e) {
     }
 });
 
+var LAYOUT_KEY = 'graph_layout_v1';
+
+function saveLayout(network) {
+    var positions = network.getPositions();
+    try {
+        localStorage.setItem(LAYOUT_KEY, JSON.stringify(positions));
+    } catch (e) {
+        // localStorage quota exceeded — silently ignore
+    }
+}
+
+function loadLayout() {
+    try {
+        var raw = localStorage.getItem(LAYOUT_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function clearLayout() {
+    localStorage.removeItem(LAYOUT_KEY);
+}
+
+function resetLayout() {
+    clearLayout();
+    localStorage.removeItem('graph_filters');
+    location.reload();
+}
+
 function initializeGraph(container, graphData) {
     try {
+        var savedPositions = loadLayout();
+        var rawNodes = graphData.nodes;
+        if (savedPositions) {
+            rawNodes = rawNodes.map(function (node) {
+                if (savedPositions[node.id]) {
+                    return Object.assign({}, node, {
+                        x: savedPositions[node.id].x,
+                        y: savedPositions[node.id].y,
+                        physics: false,
+                    });
+                }
+                return node;
+            });
+        }
         const data = {
-            nodes: new vis.DataSet(graphData.nodes),
+            nodes: new vis.DataSet(rawNodes),
             edges: new vis.DataSet(graphData.edges),
         };
 
@@ -126,8 +170,13 @@ function initializeGraph(container, graphData) {
 
         const network = new vis.Network(container, data, options);
 
-        network.once('stabilized', function () {
+        network.on('stabilized', function () {
             network.setOptions({ physics: false });
+            saveLayout(network);
+        });
+
+        network.on('dragEnd', function () {
+            saveLayout(network);
         });
 
         // AC1, AC2: Single-click navigation for task and tag nodes

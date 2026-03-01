@@ -51,6 +51,14 @@ if SENTRY_DSN:
         send_default_pii=False,
     )
 
+# Run once on deployment: python manage.py createcachetable
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_table",
+    }
+}
+
 # Password hashing - Argon2 preferred
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",

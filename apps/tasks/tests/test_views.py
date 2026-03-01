@@ -2009,3 +2009,22 @@ class TestTaskExportView:
         client.force_login(user)
         response = client.get(reverse("task-export") + "?format=bogus")
         assert response["Content-Type"] == "application/json"
+
+
+@pytest.mark.django_db
+def test_task_list_shows_large_dataset_notice_when_over_300_tasks(client):
+    user = UserFactory()
+    TaskFactory.create_batch(301, user=user)
+    client.force_login(user)
+    response = client.get(reverse("task-list"))
+    assert response.status_code == 200
+    assert response.context["show_large_dataset_notice"] is True
+
+
+@pytest.mark.django_db
+def test_task_list_no_large_dataset_notice_when_under_300_tasks(client):
+    user = UserFactory()
+    TaskFactory.create_batch(5, user=user)
+    client.force_login(user)
+    response = client.get(reverse("task-list"))
+    assert response.context["show_large_dataset_notice"] is False

@@ -31,6 +31,12 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+}
+
 # Email - console backend for development
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 

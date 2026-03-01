@@ -13,6 +13,7 @@
     <div class="btn-group btn-group-sm">
         <a href="{% url 'task-list' %}{% if graph_params.filter_status %}?status={{ graph_params.filter_status }}{% endif %}" class="btn btn-outline-secondary">List View</a>
         <a href="{% url 'split-view' %}" class="btn btn-outline-secondary">Split View</a>
+        <button type="button" class="btn btn-outline-secondary" onclick="resetLayout()">Reset Layout &amp; Filters</button>
     </div>
 </div>
 

@@ -133,6 +133,7 @@ class Task(models.Model):
             models.Index(fields=["user", "priority"]),
             models.Index(fields=["user", "due_date"]),
             models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["user", "position"]),
         ]
 
     def __str__(self):

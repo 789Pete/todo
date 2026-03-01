@@ -139,6 +139,7 @@ class TaskListView(LoginRequiredMixin, ListView):
             .order_by("-num_tasks")[:5]
         )
 
+        total_tasks = Task.objects.filter(user=self.request.user).count()
         context.update(
             {
                 "current_search": self.request.GET.get("q", ""),
@@ -153,6 +154,7 @@ class TaskListView(LoginRequiredMixin, ListView):
                 "user_tags": all_user_tags,
                 "page_base_params": page_params.urlencode(),
                 "popular_tags": popular_tags,
+                "show_large_dataset_notice": total_tasks > 300,
             }
         )
         return context

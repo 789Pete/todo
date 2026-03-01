@@ -120,3 +120,20 @@ class TestGraphDataAPI:
         url = reverse("api-graph-data")
         response = authenticated_client.get(url)
         assert "application/json" in response["Content-Type"]
+
+
+@pytest.mark.django_db
+class TestGraphDataViewCaching:
+    def test_graph_api_returns_200(self, api_client):
+        user = UserFactory()
+        api_client.force_authenticate(user=user)
+        url = reverse("api-graph-data")
+        response = api_client.get(url)
+        assert response.status_code == 200
+
+    def test_graph_api_truncated_flag_false_for_small_dataset(self, api_client):
+        user = UserFactory()
+        TaskFactory.create_batch(3, user=user)
+        api_client.force_authenticate(user=user)
+        response = api_client.get(reverse("api-graph-data"))
+        assert response.data["stats"]["truncated"] is False
