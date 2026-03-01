@@ -1936,3 +1936,76 @@ class TestTaskListSearch:
         client.force_login(user)
         response = client.get(reverse("task-list") + "?q=myquery")
         assert response.context["current_search"] == "myquery"
+
+
+@pytest.mark.django_db
+class TestTaskExportView:
+    def test_json_export_requires_login(self, client):
+        response = client.get(reverse("task-export") + "?format=json")
+        assert response.status_code == 302
+
+    def test_json_export_contains_tasks(self, client):
+        user = UserFactory()
+        tag = TagFactory(user=user)
+        task = TaskFactory(user=user, title="My Task", status="todo")
+        task.tags.add(tag)
+        client.force_login(user)
+        response = client.get(reverse("task-export") + "?format=json")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/json"
+        data = json.loads(response.content)
+        assert data["meta"]["total_tasks"] == 1
+        assert data["tasks"][0]["title"] == "My Task"
+        assert tag.name in data["tasks"][0]["tags"]
+
+    def test_csv_export_contains_header_row(self, client):
+        user = UserFactory()
+        TaskFactory(user=user)
+        client.force_login(user)
+        response = client.get(reverse("task-export") + "?format=csv")
+        assert response.status_code == 200
+        assert "text/csv" in response["Content-Type"]
+        content = response.content.decode()
+        assert "title" in content
+        assert "status" in content
+
+    def test_markdown_export_contains_checkboxes(self, client):
+        user = UserFactory()
+        TaskFactory(user=user, title="Undone Task", status="todo")
+        TaskFactory(user=user, title="Done Task", status="done")
+        client.force_login(user)
+        response = client.get(reverse("task-export") + "?format=markdown")
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "[ ]" in content
+        assert "[x]" in content
+        assert "Undone Task" in content
+        assert "Done Task" in content
+
+    def test_status_filter_applies_to_export(self, client):
+        user = UserFactory()
+        TaskFactory(user=user, status="todo")
+        TaskFactory(user=user, status="done")
+        client.force_login(user)
+        response = client.get(reverse("task-export") + "?format=json&status=todo")
+        data = json.loads(response.content)
+        assert data["meta"]["total_tasks"] == 1
+        assert data["tasks"][0]["status"] == "todo"
+
+    def test_only_own_tasks_exported(self, client):
+        user1 = UserFactory()
+        user2 = UserFactory()
+        TaskFactory(user=user1, title="User1 Task")
+        TaskFactory(user=user2, title="User2 Task")
+        client.force_login(user1)
+        response = client.get(reverse("task-export") + "?format=json")
+        data = json.loads(response.content)
+        titles = [t["title"] for t in data["tasks"]]
+        assert "User1 Task" in titles
+        assert "User2 Task" not in titles
+
+    def test_invalid_format_defaults_to_json(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        response = client.get(reverse("task-export") + "?format=bogus")
+        assert response["Content-Type"] == "application/json"

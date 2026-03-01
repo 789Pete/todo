@@ -1,5 +1,6 @@
 import csv
 import json
+from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -7,7 +8,10 @@ from django.db.models import Case, Count, IntegerField, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -65,6 +69,7 @@ def _build_clear_tags_url(request):
     return "?" + params.urlencode() if params else "?"
 
 
+@method_decorator(xframe_options_sameorigin, name="dispatch")
 class TaskListView(LoginRequiredMixin, ListView):
     model = Task
     template_name = "tasks/task_list.html"
@@ -464,6 +469,166 @@ class TagExportView(LoginRequiredMixin, View):
             writer.writerow(
                 [tag.name, tag.color, tag.num_tasks, tag.created_at.isoformat()]
             )
+        return response
+
+
+class TaskExportView(LoginRequiredMixin, View):
+    """Multi-format export of the user's tasks."""
+
+    http_method_names = ["get"]
+
+    def get(self, request):
+        fmt = request.GET.get("format", "json").lower()
+        if fmt not in ("json", "csv", "markdown"):
+            fmt = "json"
+
+        qs = (
+            Task.objects.filter(user=request.user)
+            .prefetch_related("tags")
+            .order_by("status", "position", "-created_at")
+        )
+
+        # Optional filters (AC4)
+        status_filter = request.GET.get("status", "").strip()
+        if status_filter in ("todo", "in_progress", "done"):
+            qs = qs.filter(status=status_filter)
+
+        created_after = request.GET.get("created_after", "").strip()
+        if created_after:
+            try:
+                qs = qs.filter(created_at__date__gte=date.fromisoformat(created_after))
+            except ValueError:
+                pass
+
+        created_before = request.GET.get("created_before", "").strip()
+        if created_before:
+            try:
+                qs = qs.filter(created_at__date__lte=date.fromisoformat(created_before))
+            except ValueError:
+                pass
+
+        tasks = list(qs)
+        meta = {
+            "exported_at": timezone.now().isoformat(),
+            "username": request.user.username,
+            "total_tasks": len(tasks),
+            "filters": {
+                "status": status_filter or None,
+                "created_after": created_after or None,
+                "created_before": created_before or None,
+            },
+        }
+
+        if fmt == "json":
+            return self._json_response(tasks, meta)
+        elif fmt == "csv":
+            return self._csv_response(tasks, meta)
+        else:
+            return self._markdown_response(tasks, meta)
+
+    def _task_to_dict(self, task):
+        return {
+            "id": str(task.id),
+            "title": task.title,
+            "description": task.description,
+            "status": task.status,
+            "priority": task.priority,
+            "due_date": task.due_date.isoformat() if task.due_date else None,
+            "tags": [t.name for t in task.tags.all()],
+            "created_at": task.created_at.isoformat(),
+            "updated_at": task.updated_at.isoformat(),
+            "completed_at": task.completed_at.isoformat()
+            if task.completed_at
+            else None,
+        }
+
+    def _json_response(self, tasks, meta):
+        payload = {
+            "meta": meta,
+            "tasks": [self._task_to_dict(t) for t in tasks],
+        }
+        content = json.dumps(payload, indent=2, ensure_ascii=False)
+        response = HttpResponse(content, content_type="application/json")
+        response["Content-Disposition"] = 'attachment; filename="tasks.json"'
+        return response
+
+    def _csv_response(self, tasks, meta):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="tasks.csv"'
+        writer = csv.writer(response)
+        # Metadata comment rows (AC6)
+        writer.writerow(["# exported_at", meta["exported_at"]])
+        writer.writerow(["# username", meta["username"]])
+        writer.writerow(["# total_tasks", meta["total_tasks"]])
+        writer.writerow([])
+        writer.writerow(
+            [
+                "id",
+                "title",
+                "description",
+                "status",
+                "priority",
+                "due_date",
+                "tags",
+                "created_at",
+                "updated_at",
+                "completed_at",
+            ]
+        )
+        for t in tasks:
+            d = self._task_to_dict(t)
+            writer.writerow(
+                [
+                    d["id"],
+                    d["title"],
+                    d["description"],
+                    d["status"],
+                    d["priority"],
+                    d["due_date"] or "",
+                    "|".join(d["tags"]),
+                    d["created_at"],
+                    d["updated_at"],
+                    d["completed_at"] or "",
+                ]
+            )
+        return response
+
+    def _markdown_response(self, tasks, meta):
+        lines = [
+            "# Task Export",
+            "",
+            f"**Exported:** {meta['exported_at']}  ",
+            f"**User:** {meta['username']}  ",
+            f"**Total tasks:** {meta['total_tasks']}",
+            "",
+        ]
+        groups = {"todo": [], "in_progress": [], "done": []}
+        for t in tasks:
+            groups.get(t.status, groups["todo"]).append(t)
+
+        labels = {"todo": "To Do", "in_progress": "In Progress", "done": "Done"}
+        for status_key, label in labels.items():
+            group = groups[status_key]
+            if not group:
+                continue
+            lines.append(f"## {label}")
+            lines.append("")
+            for t in group:
+                checkbox = "[x]" if t.status == "done" else "[ ]"
+                tag_str = " ".join(f"`{tag.name}`" for tag in t.tags.all())
+                title_line = f"- {checkbox} **{t.title}**"
+                if tag_str:
+                    title_line += f"  {tag_str}"
+                lines.append(title_line)
+                if t.description:
+                    lines.append(f"  > {t.description[:200]}")
+                if t.due_date:
+                    lines.append(f"  *Due: {t.due_date.isoformat()}*")
+            lines.append("")
+
+        content = "\n".join(lines)
+        response = HttpResponse(content, content_type="text/markdown; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="tasks.md"'
         return response
 
 

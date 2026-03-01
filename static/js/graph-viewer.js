@@ -1,7 +1,7 @@
 // static/js/graph-viewer.js
 // Story 3.2: Fetches real graph data from /api/graph/data/
 
-document.addEventListener('DOMContentLoaded', function () {
+function loadGraphView() {
     if (typeof fetch === 'undefined' || typeof URLSearchParams === 'undefined') {
         var fb = document.getElementById('network-graph');
         if (fb) {
@@ -25,10 +25,13 @@ document.addEventListener('DOMContentLoaded', function () {
         var val = pageParams.get(key);
         if (val) graphParams.set(key, val);
     });
-    // AC7: Persist filter state across sessions
+    // AC7: Persist filter state across sessions (only for the dedicated graph view)
+    var persistFilters = !container.dataset.noFilters;
     if (graphParams.toString()) {
-        localStorage.setItem('graph_filters', graphParams.toString());
-    } else {
+        if (persistFilters) {
+            localStorage.setItem('graph_filters', graphParams.toString());
+        }
+    } else if (persistFilters) {
         var savedFilters = localStorage.getItem('graph_filters');
         if (savedFilters) {
             var restoredParams = new URLSearchParams(savedFilters);
@@ -43,7 +46,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     fetch(apiUrl, {
         credentials: 'same-origin',
-        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Accept': 'application/json',
+        },
     })
         .then(function (response) {
             if (!response.ok) {
@@ -67,9 +73,20 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Graph data fetch failed:', e);
             container.innerHTML =
                 '<div class="alert alert-danger m-3">' +
-                'Failed to load the graph visualization. Please refresh the page.' +
+                'Failed to load the graph visualization (' + e.message + '). Please refresh the page.' +
                 '</div>';
         });
+}
+
+document.addEventListener('DOMContentLoaded', loadGraphView);
+
+// Reinitialize the graph when the page is restored from the browser's
+// Back-Forward Cache (BFCache). The network was destroyed on pagehide, so the
+// container is empty; loadGraphView() re-fetches and rebuilds it.
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+        loadGraphView();
+    }
 });
 
 function initializeGraph(container, graphData) {
@@ -211,7 +228,9 @@ function initializeGraph(container, graphData) {
             network.fit();
         });
 
-        window.addEventListener('beforeunload', function () {
+        // Use pagehide (not beforeunload) so the page remains BFCache-eligible.
+        // pagehide fires for both normal navigation and BFCache entry.
+        window.addEventListener('pagehide', function () {
             network.destroy();
         });
 
@@ -243,7 +262,7 @@ function initializeGraph(container, graphData) {
         console.error('Graph initialization failed:', e);
         container.innerHTML =
             '<div class="alert alert-danger m-3">' +
-            'Failed to load the graph visualization. Please refresh the page.' +
+            'Failed to initialize the graph (' + e.message + '). Please refresh the page.' +
             '</div>';
     }
 }

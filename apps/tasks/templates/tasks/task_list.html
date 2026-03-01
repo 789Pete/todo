@@ -9,6 +9,17 @@
     <div class="d-flex gap-2">
         <a href="{% url 'graph-view' %}{% if current_status == 'todo' or current_status == 'in_progress' or current_status == 'done' %}?filter_status={{ current_status }}{% if active_tags %}&filter_tag={{ active_tags.0.name }}{% endif %}{% elif active_tags %}?filter_tag={{ active_tags.0.name }}{% endif %}" class="btn btn-outline-secondary btn-sm">Graph View</a>
         <a href="{% url 'task-create' %}" class="btn btn-primary">New Task</a>
+        <div class="dropdown d-inline-block ms-2">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{% url 'task-export' %}?format=json">JSON (backup)</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-export' %}?format=csv">CSV (spreadsheet)</a></li>
+                <li><a class="dropdown-item" href="{% url 'task-export' %}?format=markdown">Markdown</a></li>
+            </ul>
+        </div>
     </div>
 </div>
 
