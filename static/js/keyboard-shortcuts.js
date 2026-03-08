@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // AC4 — search Enter key: navigate with ?q=
     var searchInput = document.getElementById('task-search');
+    var suggestDropdown = document.getElementById('search-suggest-dropdown');
     if (searchInput) {
         searchInput.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
@@ -104,6 +105,89 @@ document.addEventListener('DOMContentLoaded', function () {
                 params.delete('page');
                 window.location.search = params.toString();
             }
+            if (e.key === 'Escape' && suggestDropdown) {
+                suggestDropdown.classList.add('d-none');
+                suggestDropdown.innerHTML = '';
+            }
+        });
+
+        // Search-suggest autocomplete (AC6)
+        if (suggestDropdown) {
+            var suggestTimer = null;
+            searchInput.addEventListener('input', function () {
+                clearTimeout(suggestTimer);
+                var q = searchInput.value.trim();
+                if (q.length < 2) {
+                    suggestDropdown.classList.add('d-none');
+                    suggestDropdown.innerHTML = '';
+                    return;
+                }
+                suggestTimer = setTimeout(function () {
+                    fetch('/tasks/search-suggest/?q=' + encodeURIComponent(q))
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            suggestDropdown.innerHTML = '';
+                            if (!data.length) {
+                                suggestDropdown.classList.add('d-none');
+                                return;
+                            }
+                            data.forEach(function (item) {
+                                var li = document.createElement('li');
+                                li.className = 'list-group-item list-group-item-action';
+                                li.setAttribute('role', 'option');
+                                li.textContent = item.title;
+                                li.addEventListener('mousedown', function (e) {
+                                    e.preventDefault();
+                                    searchInput.value = item.title;
+                                    var params = new URLSearchParams(window.location.search);
+                                    params.set('q', item.title);
+                                    params.delete('page');
+                                    window.location.search = params.toString();
+                                });
+                                suggestDropdown.appendChild(li);
+                            });
+                            suggestDropdown.classList.remove('d-none');
+                        })
+                        .catch(function () {
+                            suggestDropdown.classList.add('d-none');
+                        });
+                }, 250);
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function (e) {
+                if (!suggestDropdown.contains(e.target) && e.target !== searchInput) {
+                    suggestDropdown.classList.add('d-none');
+                    suggestDropdown.innerHTML = '';
+                }
+            });
+        }
+    }
+
+    // Date range inputs: navigate on change (AC3)
+    document.querySelectorAll('.date-range-input').forEach(function (input) {
+        input.addEventListener('change', function () {
+            var params = new URLSearchParams(window.location.search);
+            if (this.value) { params.set(this.dataset.param, this.value); }
+            else { params.delete(this.dataset.param); }
+            params.delete('page');
+            window.location.search = params.toString();
+        });
+    });
+
+    // Share Search button: copy URL to clipboard (AC8)
+    var shareBtn = document.getElementById('share-search-btn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(window.location.href).then(function () {
+                var orig = shareBtn.title;
+                shareBtn.title = 'Copied!';
+                shareBtn.setAttribute('aria-label', 'Copied!');
+                setTimeout(function () {
+                    shareBtn.title = orig;
+                    shareBtn.setAttribute('aria-label', 'Share search');
+                }, 2000);
+            });
         });
     }
 });

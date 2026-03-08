@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoring Dashboard - Todo App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="page-heading mb-0">Monitoring Dashboard</h1>
+</div>
+
+<div class="row g-4">
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Total Users</h5>
+                <p class="display-4 fw-bold">{{ total_users }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Active Users (24h)</h5>
+                <p class="display-4 fw-bold">{{ active_users_today }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Total Tasks</h5>
+                <p class="display-4 fw-bold">{{ total_tasks }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Tasks Created (24h)</h5>
+                <p class="display-4 fw-bold">{{ tasks_created_today }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Total Tags</h5>
+                <p class="display-4 fw-bold">{{ total_tags }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

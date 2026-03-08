@@ -5,7 +5,17 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>My Tasks{% if active_tags %} ({{ task_total }}){% endif %}</h1>
+    <div class="d-flex align-items-center gap-2">
+        <h1 class="page-heading mb-0">My Tasks{% if any_filter_active %} ({{ result_count }}){% endif %}</h1>
+        {% if any_filter_active %}
+        <button id="share-search-btn" class="btn btn-outline-secondary btn-sm" title="Copy link" aria-label="Share search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4 4 0 0 1-.128-1.287z"/>
+                <path d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243z"/>
+            </svg>
+        </button>
+        {% endif %}
+    </div>
     <div class="d-flex gap-2">
         <a href="{% url 'graph-view' %}{% if current_status == 'todo' or current_status == 'in_progress' or current_status == 'done' %}?filter_status={{ current_status }}{% if active_tags %}&filter_tag={{ active_tags.0.name }}{% endif %}{% elif active_tags %}?filter_tag={{ active_tags.0.name }}{% endif %}" class="btn btn-outline-secondary btn-sm">Graph View</a>
         <a href="{% url 'task-create' %}" class="btn btn-primary">New Task</a>
@@ -23,8 +33,9 @@
     </div>
 </div>
 
-{% if active_tags %}
+{% if active_tags or current_priority or current_due_after or current_due_before %}
 <div class="alert alert-info d-flex flex-wrap align-items-center gap-2 py-2 mb-2">
+    {% if active_tags %}
     <span class="fw-semibold me-1">
         {% if tag_mode == 'and' %}AND{% else %}OR{% endif %} filter:
     </span>
@@ -40,7 +51,29 @@
     <a href="{{ toggle_tag_mode_url }}" class="btn btn-sm btn-outline-secondary py-0">
         Switch to {% if tag_mode == 'and' %}OR{% else %}AND{% endif %}
     </a>
-    <a href="{{ clear_tags_url }}" class="btn btn-sm btn-outline-secondary py-0">Clear all</a>
+    <a href="{{ clear_tags_url }}" class="btn btn-sm btn-outline-secondary py-0">Clear tags</a>
+    {% endif %}
+    {% if current_priority %}
+    <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
+        Priority: {{ current_priority }}
+        <a href="{{ priority_dismiss_url }}" class="text-decoration-none ms-1"
+           style="color: inherit;" aria-label="Remove priority filter">&times;</a>
+    </span>
+    {% endif %}
+    {% if current_due_after %}
+    <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
+        Due after: {{ current_due_after }}
+        <a href="{{ due_after_dismiss_url }}" class="text-decoration-none ms-1"
+           style="color: inherit;" aria-label="Remove due after filter">&times;</a>
+    </span>
+    {% endif %}
+    {% if current_due_before %}
+    <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
+        Due before: {{ current_due_before }}
+        <a href="{{ due_before_dismiss_url }}" class="text-decoration-none ms-1"
+           style="color: inherit;" aria-label="Remove due before filter">&times;</a>
+    </span>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -82,15 +115,17 @@
 </div>
 {% endif %}
 
-<div class="mb-2">
+<div class="mb-2 position-relative">
     <input type="text" id="task-search" class="form-control form-control-sm"
            placeholder="Search tasks… (Ctrl/⌘+F)" value="{{ current_search }}"
-           aria-label="Search tasks by title">
+           aria-label="Search tasks by title" autocomplete="off">
+    <ul id="search-suggest-dropdown" class="list-group position-absolute w-100 d-none"
+        style="top: 100%; left: 0; z-index: 1050;" role="listbox"></ul>
 </div>
 
 <div class="row mb-3">
     <div class="col-md-8">
-        <div class="d-flex flex-wrap gap-1" role="group" aria-label="Filter by status">
+        <div class="d-flex flex-wrap gap-1 mb-1" role="group" aria-label="Filter by status">
             <a href="{% url 'task-list' %}{% if current_sort %}?sort={{ current_sort }}{% endif %}"
                class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">All</a>
             <a href="{% url 'task-list' %}?status=active{% if current_sort %}&sort={{ current_sort }}{% endif %}"
@@ -101,6 +136,26 @@
                class="btn btn-outline-secondary {% if current_status == 'in_progress' %}active{% endif %}">In Progress</a>
             <a href="{% url 'task-list' %}?status=done{% if current_sort %}&sort={{ current_sort }}{% endif %}"
                class="btn btn-outline-secondary {% if current_status == 'done' %}active{% endif %}">Done</a>
+        </div>
+        <div class="d-flex flex-wrap gap-1 mb-1" role="group" aria-label="Filter by priority">
+            <a href="{{ priority_all_url }}"
+               class="btn btn-sm btn-outline-secondary {% if not current_priority %}active{% endif %}">All</a>
+            <a href="{{ priority_urls.high }}"
+               class="btn btn-sm btn-outline-secondary {% if current_priority == 'high' %}active{% endif %}">High</a>
+            <a href="{{ priority_urls.medium }}"
+               class="btn btn-sm btn-outline-secondary {% if current_priority == 'medium' %}active{% endif %}">Medium</a>
+            <a href="{{ priority_urls.low }}"
+               class="btn btn-sm btn-outline-secondary {% if current_priority == 'low' %}active{% endif %}">Low</a>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <label class="text-muted small mb-0">Due after:
+                <input type="date" class="form-control form-control-sm d-inline-block w-auto date-range-input"
+                       data-param="due_after" value="{{ current_due_after }}" aria-label="Due after date">
+            </label>
+            <label class="text-muted small mb-0">Due before:
+                <input type="date" class="form-control form-control-sm d-inline-block w-auto date-range-input"
+                       data-param="due_before" value="{{ current_due_before }}" aria-label="Due before date">
+            </label>
         </div>
     </div>
     <div class="col-md-4 text-md-end mt-2 mt-md-0">
@@ -121,9 +176,10 @@
 </div>
 
 {% if tasks %}
-<div class="list-group" id="task-list-container">
+<div class="row g-2" id="task-list-container">
     {% for task in tasks %}
-    <div class="list-group-item {% if task.status == 'done' %}opacity-50{% endif %}{% if task.is_overdue %} border-start border-danger border-3{% endif %}" data-task-pk="{{ task.pk }}">
+    <div class="col-12 col-md-6 col-lg-12">
+    <div class="list-group-item h-100 {% if task.status == 'done' %}opacity-50{% endif %}{% if task.is_overdue %} border-start border-danger border-3{% endif %}" data-task-pk="{{ task.pk }}">
         <div class="d-flex flex-column flex-sm-row w-100 justify-content-sm-between align-items-sm-start gap-1">
             <div class="d-flex align-items-start">
                 <form method="post" action="{% url 'task-toggle-status' pk=task.pk %}" class="me-2 mt-1">
@@ -136,7 +192,7 @@
                 <div>
                     <a href="{% url 'task-detail' pk=task.pk %}" class="text-decoration-none">
                         <h5 class="mb-1 {% if task.status == 'done' %}text-decoration-line-through text-muted{% endif %}">
-                            {{ task.title }}
+                            {{ task.title|highlight:current_search }}
                         </h5>
                     </a>
                     <div class="mt-1">
@@ -177,6 +233,7 @@
                 <div>{{ task.created_at|date:"M d, Y" }}</div>
             </div>
         </div>
+    </div>
     </div>
     {% endfor %}
 </div>

@@ -1,10 +1,12 @@
 import csv
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Case, Count, IntegerField, When
+from django.db.models import Case, Count, IntegerField, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -76,38 +78,80 @@ class TaskListView(LoginRequiredMixin, ListView):
     context_object_name = "tasks"
     paginate_by = 25
 
-    def get_queryset(self):
-        qs = Task.objects.filter(user=self.request.user).prefetch_related("tags")
+    def _apply_status_filter(self, qs):
         status = self.request.GET.get("status")
         if status == "active":
-            qs = qs.filter(status__in=["todo", "in_progress"])
-        elif status in ("todo", "in_progress", "done"):
-            qs = qs.filter(status=status)
+            return qs.filter(status__in=["todo", "in_progress"])
+        if status in ("todo", "in_progress", "done"):
+            return qs.filter(status=status)
+        return qs
+
+    def _apply_date_filters(self, qs):
+        due_after = self.request.GET.get("due_after", "").strip()
+        if due_after:
+            try:
+                qs = qs.filter(due_date__gte=date.fromisoformat(due_after))
+            except ValueError:
+                pass
+        due_before = self.request.GET.get("due_before", "").strip()
+        if due_before:
+            try:
+                qs = qs.filter(due_date__lte=date.fromisoformat(due_before))
+            except ValueError:
+                pass
+        return qs
+
+    def _apply_tag_filter(self, qs):
+        tag_ids = self.request.GET.getlist("tags")
+        if not tag_ids:
+            return qs
+        if self.request.GET.get("tag_mode") == "or":
+            return qs.filter(tags__pk__in=tag_ids).distinct()
+        for tag_id in tag_ids:
+            qs = qs.filter(tags__pk=tag_id)
+        return qs
+
+    def _apply_sort(self, qs, q):
         sort = self.request.GET.get("sort")
         if sort in SORT_OPTIONS:
-            qs = qs.order_by(SORT_OPTIONS[sort])
-        else:
-            qs = qs.order_by(PRIORITY_ORDER, "-created_at")
-        tag_ids = self.request.GET.getlist("tags")
-        if tag_ids:
-            tag_mode = self.request.GET.get("tag_mode", "and")
-            if tag_mode == "or":
-                qs = qs.filter(tags__pk__in=tag_ids).distinct()
-            else:
-                for tag_id in tag_ids:
-                    qs = qs.filter(tags__pk=tag_id)
+            return qs.order_by(SORT_OPTIONS[sort])
+        if q:
+            return qs.annotate(
+                title_match=Case(
+                    When(title__icontains=q, then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ).order_by("-title_match", "-created_at")
+        return qs.order_by(PRIORITY_ORDER, "-created_at")
+
+    def get_queryset(self):
+        qs = Task.objects.filter(user=self.request.user).prefetch_related("tags")
+        qs = self._apply_status_filter(qs)
+        priority = self.request.GET.get("priority")
+        if priority in ("low", "medium", "high"):
+            qs = qs.filter(priority=priority)
+        qs = self._apply_date_filters(qs)
+        qs = self._apply_tag_filter(qs)
         q = self.request.GET.get("q", "").strip()
         if q:
-            qs = qs.filter(title__icontains=q)
-        return qs
+            qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
+        return self._apply_sort(qs, q)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["current_status"] = self.request.GET.get("status", "")
-        context["current_sort"] = self.request.GET.get("sort", "")
 
+        q = self.request.GET.get("q", "")
+        status = self.request.GET.get("status", "")
+        priority = self.request.GET.get("priority", "")
         tag_ids = self.request.GET.getlist("tags")
         tag_mode = self.request.GET.get("tag_mode", "and")
+        due_after = self.request.GET.get("due_after", "")
+        due_before = self.request.GET.get("due_before", "")
+
+        any_filter_active = bool(
+            q or status or priority or tag_ids or due_after or due_before
+        )
 
         active_tags = (
             Tag.objects.filter(user=self.request.user, pk__in=tag_ids)
@@ -140,9 +184,40 @@ class TaskListView(LoginRequiredMixin, ListView):
         )
 
         total_tasks = Task.objects.filter(user=self.request.user).count()
+
+        # Build priority filter URLs (preserve existing params)
+        priority_urls = {}
+        for p in ("high", "medium", "low"):
+            params = self.request.GET.copy()
+            params["priority"] = p
+            params.pop("page", None)
+            priority_urls[p] = "?" + params.urlencode()
+
+        p_all = self.request.GET.copy()
+        p_all.pop("priority", None)
+        p_all.pop("page", None)
+        priority_all_url = ("?" + p_all.urlencode()) if p_all else "?"
+
+        # Build dismiss URLs for active filter pills
+        def _dismiss_url(*param_names):
+            params = self.request.GET.copy()
+            for name in param_names:
+                params.pop(name, None)
+            params.pop("page", None)
+            return ("?" + params.urlencode()) if params else "?"
+
+        context["current_status"] = status
+        context["current_sort"] = self.request.GET.get("sort", "")
         context.update(
             {
-                "current_search": self.request.GET.get("q", ""),
+                "current_search": q,
+                "current_priority": priority,
+                "current_due_after": due_after,
+                "current_due_before": due_before,
+                "any_filter_active": any_filter_active,
+                "result_count": (
+                    self.get_queryset().count() if any_filter_active else None
+                ),
                 "active_tag_ids": tag_ids,
                 "active_tags": active_tags,
                 "tag_mode": tag_mode,
@@ -150,11 +225,15 @@ class TaskListView(LoginRequiredMixin, ListView):
                 "tag_remove_urls": tag_remove_urls,
                 "clear_tags_url": _build_clear_tags_url(self.request),
                 "toggle_tag_mode_url": "?" + toggle_params.urlencode(),
-                "task_total": self.get_queryset().count(),
                 "user_tags": all_user_tags,
                 "page_base_params": page_params.urlencode(),
                 "popular_tags": popular_tags,
                 "show_large_dataset_notice": total_tasks > 300,
+                "priority_urls": priority_urls,
+                "priority_all_url": priority_all_url,
+                "priority_dismiss_url": _dismiss_url("priority"),
+                "due_after_dismiss_url": _dismiss_url("due_after"),
+                "due_before_dismiss_url": _dismiss_url("due_before"),
             }
         )
         return context
@@ -413,6 +492,21 @@ class TagAutocompleteView(LoginRequiredMixin, View):
             [{"id": str(t.pk), "name": t.name, "color": t.color} for t in tags],
             safe=False,
         )
+
+
+class TaskSearchSuggestView(LoginRequiredMixin, View):
+    """AJAX endpoint returning up to 8 task title suggestions for the search input."""
+
+    http_method_names = ["get"]
+
+    def get(self, request):
+        q = request.GET.get("q", "").strip()
+        if not q:
+            return JsonResponse([], safe=False)
+        titles = Task.objects.filter(user=request.user, title__icontains=q).values_list(
+            "title", flat=True
+        )[:8]
+        return JsonResponse([{"title": t} for t in titles], safe=False)
 
 
 class TagBulkEditView(LoginRequiredMixin, View):
@@ -739,3 +833,20 @@ def _pick_auto_color(existing_colors):
         if c in color_counts:
             color_counts[c] += 1
     return min(color_counts, key=color_counts.get)
+
+
+@staff_member_required
+def monitoring_dashboard(request):
+    user_model = get_user_model()
+    context = {
+        "total_users": user_model.objects.count(),
+        "active_users_today": user_model.objects.filter(
+            last_login__gte=timezone.now() - timedelta(days=1)
+        ).count(),
+        "total_tasks": Task.objects.count(),
+        "tasks_created_today": Task.objects.filter(
+            created_at__gte=timezone.now() - timedelta(days=1)
+        ).count(),
+        "total_tags": Tag.objects.count(),
+    }
+    return render(request, "tasks/monitoring.html", context)

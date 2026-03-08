@@ -1468,7 +1468,7 @@ class TestTaskListViewTagFilter:
         assert tag1 in active_tags
         assert tag2 in active_tags
 
-    def test_task_total_context_reflects_filtered_count(self):
+    def test_result_count_context_reflects_filtered_count(self):
         user = UserFactory()
         tag = TagFactory(user=user)
         TaskFactory(user=user, tags=[tag])
@@ -1477,7 +1477,8 @@ class TestTaskListViewTagFilter:
 
         response = self._client(user).get(reverse("task-list") + f"?tags={tag.pk}")
 
-        assert response.context["task_total"] == 2
+        assert response.context["result_count"] == 2
+        assert response.context["any_filter_active"] is True
 
     def test_tag_mode_defaults_to_and(self):
         user = UserFactory()
@@ -2028,3 +2029,275 @@ def test_task_list_no_large_dataset_notice_when_under_300_tasks(client):
     client.force_login(user)
     response = client.get(reverse("task-list"))
     assert response.context["show_large_dataset_notice"] is False
+
+
+# --- Story 4.2: PWA and FAB tests ---
+
+
+class TestManifestView:
+    def test_manifest_returns_200(self, client):
+        response = client.get("/manifest.json")
+        assert response.status_code == 200
+
+    def test_manifest_content_type(self, client):
+        response = client.get("/manifest.json")
+        assert "application/manifest+json" in response["Content-Type"]
+
+    def test_manifest_has_required_fields(self, client):
+        import json
+
+        response = client.get("/manifest.json")
+        data = json.loads(response.content)
+        assert data["name"] == "Todo App"
+        assert data["display"] == "standalone"
+        assert "start_url" in data
+
+
+class TestServiceWorkerView:
+    def test_service_worker_returns_200(self, client):
+        response = client.get("/service-worker.js")
+        assert response.status_code == 200
+
+    def test_service_worker_content_type(self, client):
+        response = client.get("/service-worker.js")
+        assert "javascript" in response["Content-Type"]
+
+    def test_service_worker_allowed_header(self, client):
+        response = client.get("/service-worker.js")
+        assert response["Service-Worker-Allowed"] == "/"
+
+
+@pytest.mark.django_db
+def test_task_list_fab_present_for_authenticated_user(client):
+    user = UserFactory()
+    client.force_login(user)
+    response = client.get(reverse("task-list"))
+    assert response.status_code == 200
+    content = response.content.decode()
+    # FAB links to task-create URL (/tasks/create/) and is hidden at md+ breakpoint
+    assert reverse("task-create") in content
+    assert "d-md-none" in content
+
+
+# ---------------------------------------------------------------------------
+# Story 4.5: Advanced Search & Discovery Features
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestAdvancedSearch:
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_search_matches_description(self):
+        user = UserFactory()
+        task = TaskFactory(user=user, title="Unrelated", description="needle here")
+        TaskFactory(user=user, title="Other", description="nothing")
+
+        response = self._client(user).get(reverse("task-list") + "?q=needle")
+
+        tasks = list(response.context["tasks"])
+        assert task in tasks
+        assert len(tasks) == 1
+
+    def test_search_does_not_match_other_user_description(self):
+        user = UserFactory()
+        other = UserFactory()
+        TaskFactory(user=other, title="Unrelated", description="needle here")
+
+        response = self._client(user).get(reverse("task-list") + "?q=needle")
+
+        assert list(response.context["tasks"]) == []
+
+    def test_priority_filter_high(self):
+        user = UserFactory()
+        high_task = TaskFactory(user=user, priority="high")
+        TaskFactory(user=user, priority="low")
+        TaskFactory(user=user, priority="medium")
+
+        response = self._client(user).get(reverse("task-list") + "?priority=high")
+
+        tasks = list(response.context["tasks"])
+        assert tasks == [high_task]
+
+    def test_due_after_filter(self):
+        user = UserFactory()
+        future = date.today() + timedelta(days=5)
+        past = date.today() - timedelta(days=5)
+        future_task = TaskFactory(user=user, due_date=future)
+        TaskFactory(user=user, due_date=past)
+
+        cutoff = date.today().isoformat()
+        response = self._client(user).get(reverse("task-list") + f"?due_after={cutoff}")
+
+        tasks = list(response.context["tasks"])
+        assert future_task in tasks
+        assert all(t.due_date >= date.today() for t in tasks if t.due_date)
+
+    def test_due_before_filter(self):
+        user = UserFactory()
+        past = date.today() - timedelta(days=5)
+        future = date.today() + timedelta(days=5)
+        past_task = TaskFactory(user=user, due_date=past)
+        TaskFactory(user=user, due_date=future)
+
+        cutoff = date.today().isoformat()
+        response = self._client(user).get(
+            reverse("task-list") + f"?due_before={cutoff}"
+        )
+
+        tasks = list(response.context["tasks"])
+        assert past_task in tasks
+        assert all(t.due_date <= date.today() for t in tasks if t.due_date)
+
+    def test_result_count_in_context_when_filter_active(self):
+        user = UserFactory()
+        TaskFactory(user=user, title="matching task", description="")
+        TaskFactory(user=user, title="other task", description="")
+
+        response = self._client(user).get(reverse("task-list") + "?q=matching")
+
+        assert response.context["any_filter_active"] is True
+        assert response.context["result_count"] == 1
+
+
+@pytest.mark.django_db
+class TestTaskSearchSuggestView:
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_search_suggest_returns_titles(self):
+        user = UserFactory()
+        TaskFactory(user=user, title="Fix the login bug")
+        TaskFactory(user=user, title="Fix the logout bug")
+        TaskFactory(user=user, title="Unrelated task")
+
+        response = self._client(user).get(reverse("task-search-suggest") + "?q=fix")
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        titles = [item["title"] for item in data]
+        assert "Fix the login bug" in titles
+        assert "Fix the logout bug" in titles
+        assert "Unrelated task" not in titles
+
+    def test_search_suggest_requires_login(self, client):
+        response = client.get(reverse("task-search-suggest") + "?q=foo")
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_search_suggest_empty_q_returns_empty(self):
+        user = UserFactory()
+        TaskFactory(user=user, title="Some task")
+
+        response = self._client(user).get(reverse("task-search-suggest") + "?q=")
+
+        assert response.status_code == 200
+        assert json.loads(response.content) == []
+
+
+def test_highlight_filter():
+    from apps.tasks.templatetags.task_tags import highlight
+
+    result = str(highlight("Fix the login bug", "login"))
+    assert "<mark>login</mark>" in result
+
+    # Case-insensitive
+    result_ci = str(highlight("Fix the LOGIN bug", "login"))
+    assert "<mark>LOGIN</mark>" in result_ci
+
+    # Empty query returns value unchanged
+    result_empty = highlight("Fix the login bug", "")
+    assert result_empty == "Fix the login bug"
+
+
+# ---------------------------------------------------------------------------
+# Health check endpoint tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestHealthCheckEndpoints:
+    def test_readiness_check_returns_200(self, client):
+        response = client.get(reverse("health-ready"))
+        assert response.status_code == 200
+        assert response.json()["status"] == "ready"
+
+    def test_liveness_check_returns_200(self, client):
+        response = client.get(reverse("health-live"))
+        assert response.status_code == 200
+        assert response.json()["status"] == "alive"
+
+
+# ---------------------------------------------------------------------------
+# Staff monitoring dashboard tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestMonitoringDashboard:
+    def test_monitoring_dashboard_redirects_anonymous(self, client):
+        response = client.get(reverse("task-monitoring"))
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_monitoring_dashboard_redirects_non_staff(self):
+        user = UserFactory(is_staff=False)
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-monitoring"))
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    def test_monitoring_dashboard_accessible_to_staff(self):
+        user = UserFactory(is_staff=True)
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-monitoring"))
+        assert response.status_code == 200
+
+    def test_monitoring_dashboard_context_has_stats(self):
+        user = UserFactory(is_staff=True)
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("task-monitoring"))
+        assert response.status_code == 200
+        ctx = response.context
+        assert "total_users" in ctx
+        assert "active_users_today" in ctx
+        assert "total_tasks" in ctx
+        assert "tasks_created_today" in ctx
+        assert "total_tags" in ctx
+
+
+# ---------------------------------------------------------------------------
+# Failed login signal handler test
+# ---------------------------------------------------------------------------
+
+
+def test_failed_login_signal_handler_logs_warning(caplog):
+    import logging
+
+    from django.test import RequestFactory
+
+    from apps.accounts.signals import log_failed_login
+
+    factory = RequestFactory()
+    request = factory.post("/accounts/login/")
+    request.META["REMOTE_ADDR"] = "127.0.0.1"
+
+    with caplog.at_level(logging.WARNING, logger="apps.accounts"):
+        log_failed_login(
+            sender=None,
+            credentials={"username": "testuser"},
+            request=request,
+        )
+
+    assert any(
+        "Failed login attempt for username: testuser" in r.message
+        for r in caplog.records
+    )

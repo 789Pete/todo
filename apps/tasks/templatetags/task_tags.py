@@ -1,4 +1,7 @@
+import re
+
 from django import template
+from django.utils.html import escape, mark_safe
 
 register = template.Library()
 
@@ -7,6 +10,22 @@ register = template.Library()
 def get_item(dictionary, key):
     """Retrieve a value from a dict by key (coerces key to string)."""
     return dictionary.get(str(key))
+
+
+@register.filter
+def highlight(value, query):
+    """Wrap matching substrings in <mark> tags. HTML-escapes value to prevent XSS."""
+    if not query:
+        return value
+    escaped_value = escape(value)
+    escaped_query = re.escape(escape(query))
+    highlighted = re.sub(
+        escaped_query,
+        lambda m: f"<mark>{m.group()}</mark>",
+        escaped_value,
+        flags=re.IGNORECASE,
+    )
+    return mark_safe(highlighted)
 
 
 @register.filter

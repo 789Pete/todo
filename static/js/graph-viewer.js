@@ -213,22 +213,55 @@ function initializeGraph(container, graphData) {
         var ctxTags = document.getElementById('ctx-tags');
         var ctxDelete = document.getElementById('ctx-delete');
 
-        network.on('oncontext', function (params) {
-            params.event.preventDefault();
-            if (params.nodes.length === 0) return;
-            var nodeId = params.nodes[0];
-            if (nodeId.indexOf('task-') !== 0) return;
+        function showContextMenu(clientX, clientY, nodeId) {
+            if (!nodeId || nodeId.indexOf('task-') !== 0) return;
             var uuid = nodeId.slice(5);
             ctxView.href = '/tasks/' + uuid + '/?from_graph=1';
             ctxEdit.href = '/tasks/' + uuid + '/edit/';
             ctxTags.href = '/tasks/' + uuid + '/edit/';
             ctxDelete.href = '/tasks/' + uuid + '/delete/';
-            contextMenu.style.left = params.event.clientX + 'px';
-            contextMenu.style.top = params.event.clientY + 'px';
+            // Clamp menu position within viewport
+            var menuWidth = 160;
+            var menuHeight = 120;
+            var left = Math.min(clientX, window.innerWidth - menuWidth);
+            var top = Math.min(clientY, window.innerHeight - menuHeight);
+            contextMenu.style.left = left + 'px';
+            contextMenu.style.top = top + 'px';
             contextMenu.style.display = 'block';
             document.addEventListener('click', function () {
                 contextMenu.style.display = 'none';
             }, { once: true });
+        }
+
+        network.on('oncontext', function (params) {
+            params.event.preventDefault();
+            if (params.nodes.length === 0) return;
+            showContextMenu(params.event.clientX, params.event.clientY, params.nodes[0]);
+        });
+
+        // AC3: Long-press on touch devices opens context menu (replaces right-click)
+        var longPressTimer = null;
+        var LONG_PRESS_MS = 500;
+
+        container.addEventListener('touchstart', function (e) {
+            if (e.touches.length !== 1) return;
+            var touch = e.touches[0];
+            var rect = container.getBoundingClientRect();
+            var canvasX = touch.clientX - rect.left;
+            var canvasY = touch.clientY - rect.top;
+            var nodeId = network.getNodeAt({ x: canvasX, y: canvasY });
+            if (!nodeId) return;
+            longPressTimer = setTimeout(function () {
+                showContextMenu(touch.clientX, touch.clientY, nodeId);
+            }, LONG_PRESS_MS);
+        }, { passive: true });
+
+        container.addEventListener('touchend', function () {
+            clearTimeout(longPressTimer);
+        });
+
+        container.addEventListener('touchmove', function () {
+            clearTimeout(longPressTimer);
         });
 
         // AC5 (keyboard): Enter key opens the selected node

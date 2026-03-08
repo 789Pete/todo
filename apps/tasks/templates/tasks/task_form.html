@@ -6,7 +6,7 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <h1>{% if object %}Edit Task{% else %}Create Task{% endif %}</h1>
+        <h1 class="page-heading">{% if object %}Edit Task{% else %}Create Task{% endif %}</h1>
 
         <form method="post" novalidate>
             {% csrf_token %}

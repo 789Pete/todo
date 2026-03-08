@@ -1,0 +1,16 @@
+{
+  "name": "Todo App",
+  "short_name": "Todos",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#4ECDC4",
+  "background_color": "#ffffff",
+  "description": "Task management with network graph visualization",
+  "icons": [
+    {
+      "src": "/static/images/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

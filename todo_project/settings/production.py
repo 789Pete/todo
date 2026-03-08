@@ -49,6 +49,8 @@ if SENTRY_DSN:
         integrations=[DjangoIntegration()],
         traces_sample_rate=0.1,
         send_default_pii=False,
+        environment="production",
+        release=os.environ.get("GIT_COMMIT_SHA", "unknown"),
     )
 
 # Run once on deployment: python manage.py createcachetable
@@ -70,20 +72,25 @@ PASSWORD_HASHERS = [
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+    },
     "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
+        "console": {"class": "logging.StreamHandler"},
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(BASE_DIR, "logs/django.log"),  # noqa: F405
+            "maxBytes": 1024 * 1024 * 10,
+            "backupCount": 5,
+            "formatter": "verbose",
         },
     },
-    "root": {
-        "handlers": ["console"],
-        "level": "WARNING",
-    },
+    "root": {"handlers": ["console"], "level": "WARNING"},
     "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "ERROR",
-            "propagate": False,
-        },
+        "django": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "apps": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
     },
 }

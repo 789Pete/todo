@@ -6,6 +6,12 @@
     --spacing-lg: 1.5rem;
 }
 
+mark {
+    background: #fff3cd;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
 body {
     min-height: 100vh;
     display: flex;
@@ -73,4 +79,14 @@ body {
     outline: 2px solid #0d6efd;
     outline-offset: -2px;
     background-color: rgba(13, 110, 253, 0.05) !important;
+}
+
+/* AC2: Hide keyboard shortcut hints on touch devices */
+body.touch-device .kb-hint {
+    display: none !important;
+}
+
+/* AC5: Fluid page heading typography */
+.page-heading {
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
 }

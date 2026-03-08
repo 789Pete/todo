@@ -17,8 +17,10 @@ from apps.tasks.views import (
     TaskDetailView,
     TaskExportView,
     TaskListView,
+    TaskSearchSuggestView,
     TaskToggleStatusView,
     TaskUpdateView,
+    monitoring_dashboard,
 )
 
 urlpatterns = [
@@ -31,6 +33,11 @@ urlpatterns = [
         "<uuid:pk>/toggle/", TaskToggleStatusView.as_view(), name="task-toggle-status"
     ),
     path("export/", TaskExportView.as_view(), name="task-export"),
+    path(
+        "search-suggest/",
+        TaskSearchSuggestView.as_view(),
+        name="task-search-suggest",
+    ),
     # Tag URLs
     path("tags/", TagListView.as_view(), name="tag-list"),
     path("tags/create/", TagCreateView.as_view(), name="tag-create"),
@@ -45,4 +52,5 @@ urlpatterns = [
     ),
     path("tags/<uuid:pk>/name/", TagNameUpdateView.as_view(), name="tag-name-update"),
     path("tags/<uuid:pk>/merge/", TagMergeView.as_view(), name="tag-merge"),
+    path("monitoring/", monitoring_dashboard, name="task-monitoring"),
 ]
