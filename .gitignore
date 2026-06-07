@@ -137,6 +137,10 @@ logs/
 .vscode/
 .idea/
 *.swp
+
+# BMad / Claude Code local tooling
+.claude/
+_bmad/
 *.swo
 *~
 
