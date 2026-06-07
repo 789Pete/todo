@@ -14,18 +14,23 @@ def get_item(dictionary, key):
 
 @register.filter
 def highlight(value, query):
-    """Wrap matching substrings in <mark> tags. HTML-escapes value to prevent XSS."""
+    """Wrap matching substrings in <mark> tags. HTML-escapes output to prevent XSS.
+
+    Matches against the original (unescaped) value so the query can never land
+    inside an HTML entity produced by escaping (e.g. searching "amp" in "AT&T").
+    """
+    query = (query or "").strip()
     if not query:
         return value
-    escaped_value = escape(value)
-    escaped_query = re.escape(escape(query))
-    highlighted = re.sub(
-        escaped_query,
-        lambda m: f"<mark>{m.group()}</mark>",
-        escaped_value,
-        flags=re.IGNORECASE,
-    )
-    return mark_safe(highlighted)
+    pattern = re.compile(re.escape(query), re.IGNORECASE)
+    pieces = []
+    last = 0
+    for match in pattern.finditer(value):
+        pieces.append(escape(value[last : match.start()]))
+        pieces.append(f"<mark>{escape(match.group())}</mark>")
+        last = match.end()
+    pieces.append(escape(value[last:]))
+    return mark_safe("".join(pieces))
 
 
 @register.filter

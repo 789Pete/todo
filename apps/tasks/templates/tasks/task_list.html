@@ -126,15 +126,15 @@
 <div class="row mb-3">
     <div class="col-md-8">
         <div class="d-flex flex-wrap gap-1 mb-1" role="group" aria-label="Filter by status">
-            <a href="{% url 'task-list' %}{% if current_sort %}?sort={{ current_sort }}{% endif %}"
+            <a href="{{ status_all_url }}"
                class="btn btn-outline-secondary {% if not current_status %}active{% endif %}">All</a>
-            <a href="{% url 'task-list' %}?status=active{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+            <a href="{{ status_urls.active }}"
                class="btn btn-outline-secondary {% if current_status == 'active' %}active{% endif %}">Active</a>
-            <a href="{% url 'task-list' %}?status=todo{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+            <a href="{{ status_urls.todo }}"
                class="btn btn-outline-secondary {% if current_status == 'todo' %}active{% endif %}">To Do</a>
-            <a href="{% url 'task-list' %}?status=in_progress{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+            <a href="{{ status_urls.in_progress }}"
                class="btn btn-outline-secondary {% if current_status == 'in_progress' %}active{% endif %}">In Progress</a>
-            <a href="{% url 'task-list' %}?status=done{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+            <a href="{{ status_urls.done }}"
                class="btn btn-outline-secondary {% if current_status == 'done' %}active{% endif %}">Done</a>
         </div>
         <div class="d-flex flex-wrap gap-1 mb-1" role="group" aria-label="Filter by priority">

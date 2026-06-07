@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Search-suggest autocomplete (AC6)
         if (suggestDropdown) {
             var suggestTimer = null;
+            var suggestSeq = 0;
             searchInput.addEventListener('input', function () {
                 clearTimeout(suggestTimer);
                 var q = searchInput.value.trim();
@@ -123,9 +124,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 suggestTimer = setTimeout(function () {
+                    var seq = ++suggestSeq;
                     fetch('/tasks/search-suggest/?q=' + encodeURIComponent(q))
                         .then(function (r) { return r.json(); })
                         .then(function (data) {
+                            // Ignore responses that arrive out of order
+                            if (seq !== suggestSeq) { return; }
                             suggestDropdown.innerHTML = '';
                             if (!data.length) {
                                 suggestDropdown.classList.add('d-none');

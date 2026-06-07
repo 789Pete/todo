@@ -141,7 +141,7 @@ class TaskListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        q = self.request.GET.get("q", "")
+        q = self.request.GET.get("q", "").strip()
         status = self.request.GET.get("status", "")
         priority = self.request.GET.get("priority", "")
         tag_ids = self.request.GET.getlist("tags")
@@ -198,6 +198,19 @@ class TaskListView(LoginRequiredMixin, ListView):
         p_all.pop("page", None)
         priority_all_url = ("?" + p_all.urlencode()) if p_all else "?"
 
+        # Build status filter URLs (preserve existing params)
+        status_urls = {}
+        for s in ("active", "todo", "in_progress", "done"):
+            params = self.request.GET.copy()
+            params["status"] = s
+            params.pop("page", None)
+            status_urls[s] = "?" + params.urlencode()
+
+        s_all = self.request.GET.copy()
+        s_all.pop("status", None)
+        s_all.pop("page", None)
+        status_all_url = ("?" + s_all.urlencode()) if s_all else "?"
+
         # Build dismiss URLs for active filter pills
         def _dismiss_url(*param_names):
             params = self.request.GET.copy()
@@ -231,6 +244,8 @@ class TaskListView(LoginRequiredMixin, ListView):
                 "show_large_dataset_notice": total_tasks > 300,
                 "priority_urls": priority_urls,
                 "priority_all_url": priority_all_url,
+                "status_urls": status_urls,
+                "status_all_url": status_all_url,
                 "priority_dismiss_url": _dismiss_url("priority"),
                 "due_after_dismiss_url": _dismiss_url("due_after"),
                 "due_before_dismiss_url": _dismiss_url("due_before"),

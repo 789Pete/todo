@@ -2173,6 +2173,34 @@ class TestAdvancedSearch:
         assert tasks[0] == title_match
         assert tasks[1] == desc_only
 
+    def test_status_urls_preserve_other_filters(self):
+        user = UserFactory()
+        TaskFactory(user=user, title="needle", priority="high")
+
+        response = self._client(user).get(
+            reverse("task-list") + "?q=needle&priority=high"
+        )
+
+        # Clicking a status filter must keep the active search + priority filters
+        for url in response.context["status_urls"].values():
+            assert "q=needle" in url
+            assert "priority=high" in url
+        assert "q=needle" in response.context["status_all_url"]
+        assert "priority=high" in response.context["status_all_url"]
+
+    def test_whitespace_only_search_is_not_active(self):
+        user = UserFactory()
+        TaskFactory(user=user, title="task one")
+        TaskFactory(user=user, title="task two")
+
+        response = self._client(user).get(reverse("task-list") + "?q=%20%20")
+
+        # A blank/whitespace query must not register as an active filter
+        assert response.context["any_filter_active"] is False
+        assert response.context["result_count"] is None
+        assert response.context["current_search"] == ""
+        assert len(list(response.context["tasks"])) == 2
+
 
 @pytest.mark.django_db
 class TestTaskSearchSuggestView:
@@ -2224,6 +2252,21 @@ def test_highlight_filter():
     # Empty query returns value unchanged
     result_empty = highlight("Fix the login bug", "")
     assert result_empty == "Fix the login bug"
+
+    # Special chars in the title are escaped, not corrupted by a partial entity
+    # match (searching "amp" must NOT highlight inside the escaped "&" entity)
+    result_entity = str(highlight("AT&T meeting", "amp"))
+    assert "&amp;" in result_entity
+    assert "<mark>" not in result_entity
+
+    # Matching text adjacent to special chars still escapes the special char
+    result_amp = str(highlight("AT&T meeting", "meeting"))
+    assert "AT&amp;T <mark>meeting</mark>" == result_amp
+
+    # XSS: angle brackets in the title are escaped even when highlighted
+    result_xss = str(highlight("<script>alert(1)</script>", "script"))
+    assert "<script>" not in result_xss
+    assert "&lt;<mark>script</mark>&gt;" in result_xss
 
 
 # ---------------------------------------------------------------------------
