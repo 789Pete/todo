@@ -2162,6 +2162,17 @@ class TestAdvancedSearch:
         assert response.context["any_filter_active"] is True
         assert response.context["result_count"] == 1
 
+    def test_title_match_sorts_before_description_only_match(self):
+        user = UserFactory()
+        desc_only = TaskFactory(user=user, title="Unrelated", description="needle here")
+        title_match = TaskFactory(user=user, title="needle in title", description="")
+
+        response = self._client(user).get(reverse("task-list") + "?q=needle")
+
+        tasks = list(response.context["tasks"])
+        assert tasks[0] == title_match
+        assert tasks[1] == desc_only
+
 
 @pytest.mark.django_db
 class TestTaskSearchSuggestView:

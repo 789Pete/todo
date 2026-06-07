@@ -3,8 +3,8 @@ import json
 from datetime import date, timedelta
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, IntegerField, Q, When
 from django.http import HttpResponse, JsonResponse
@@ -216,7 +216,7 @@ class TaskListView(LoginRequiredMixin, ListView):
                 "current_due_before": due_before,
                 "any_filter_active": any_filter_active,
                 "result_count": (
-                    self.get_queryset().count() if any_filter_active else None
+                    self.object_list.count() if any_filter_active else None
                 ),
                 "active_tag_ids": tag_ids,
                 "active_tags": active_tags,
@@ -835,8 +835,10 @@ def _pick_auto_color(existing_colors):
     return min(color_counts, key=color_counts.get)
 
 
-@staff_member_required
+@login_required
 def monitoring_dashboard(request):
+    if not request.user.is_staff:
+        return redirect("login")
     user_model = get_user_model()
     context = {
         "total_users": user_model.objects.count(),

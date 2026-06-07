@@ -18,6 +18,11 @@ jobs:
           PA_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
           GIT_COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          # Guard against empty SHA
+          if [ -z "$GIT_COMMIT_SHA" ]; then
+            echo "Error: GIT_COMMIT_SHA is empty; aborting deploy"
+            exit 1
+          fi
           # Checkout correct commit and deploy
           curl -s -X POST \
             "https://www.pythonanywhere.com/api/v0/user/$PA_USERNAME/consoles/" \

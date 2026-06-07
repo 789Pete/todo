@@ -179,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var shareBtn = document.getElementById('share-search-btn');
     if (shareBtn) {
         shareBtn.addEventListener('click', function () {
+            if (!navigator.clipboard) return;
             navigator.clipboard.writeText(window.location.href).then(function () {
                 var orig = shareBtn.title;
                 shareBtn.title = 'Copied!';
@@ -187,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     shareBtn.title = orig;
                     shareBtn.setAttribute('aria-label', 'Share search');
                 }, 2000);
-            });
+            }).catch(function () {});
         });
     }
 });
