@@ -30,7 +30,7 @@ X_FRAME_OPTIONS = "DENY"
 
 # WhiteNoise for static files
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_STORAGE = "todo_project.storage.StaticFilesStorage"
 
 # Database - PostgreSQL in production
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
