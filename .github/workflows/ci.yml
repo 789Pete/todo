@@ -57,7 +57,7 @@ jobs:
         run: .venv/bin/python manage.py check
 
       - name: Check migrations
-        run: .venv/bin/python manage.py migrate --check --dry-run
+        run: .venv/bin/python manage.py makemigrations --check --dry-run
 
       - name: Run tests with coverage
         run: .venv/bin/pytest
