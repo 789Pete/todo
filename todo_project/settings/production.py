@@ -12,6 +12,9 @@ DEBUG = False
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
 
+# Tell Django that Nginx is terminating SSL and forwarding via this header
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # Security settings — SSL flags can be disabled for plain-HTTP LAN deployments
 _ssl = os.environ.get("SECURE_SSL", "true").lower() == "true"
 SECURE_SSL_REDIRECT = _ssl
@@ -22,7 +25,7 @@ SESSION_COOKIE_SECURE = _ssl
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = _ssl
-CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False  # JS reads this cookie to send X-CSRFToken header
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
